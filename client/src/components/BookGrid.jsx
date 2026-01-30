@@ -125,8 +125,9 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
                       boxShadow: '0 0 30px rgba(56, 189, 248, 0.4)',
                       background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(56, 189, 248, 0.1))'
                     } : (isUnlocked && isCorrupted) ? {
-                      border: '2px solid rgba(0, 255, 65, 0.5)',
-                      boxShadow: '0 0 20px rgba(0, 255, 65, 0.3)'
+                      border: '2px solid rgba(16, 185, 129, 0.6)',
+                      boxShadow: '0 0 30px rgba(16, 185, 129, 0.5)',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(52, 211, 153, 0.1))'
                     } : {}}
                   >
                     <div className="book-image">
@@ -140,16 +141,16 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
                       />
                       <span className="badge" style={{
                         background: (isUnlocked && isCorrupted) 
-                          ? 'linear-gradient(135deg, #00ff41, #00cc33)' 
+                          ? 'linear-gradient(135deg, #10b981, #34d399)' 
                           : displayCorrupted 
                           ? 'linear-gradient(135deg, #38bdf8, #7c3aed)' 
                           : '#924EFF',
-                        color: '#fff',
+                        color: '#000',
                         fontWeight: 'bold',
                         boxShadow: displayCorrupted 
                           ? '0 0 15px rgba(56, 189, 248, 0.6)' 
                           : (isUnlocked && isCorrupted) 
-                          ? '0 0 15px rgba(0, 255, 65, 0.6)' 
+                          ? '0 0 20px rgba(16, 185, 129, 0.7)' 
                           : 'none'
                       }}>
                         {isUnlocked && isCorrupted ? '✅ RESTORED' : displayCorrupted ? '🔒 CORRUPTED' : book.category}
@@ -165,8 +166,8 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
                           border: 'none', 
                           cursor: 'pointer', 
                           padding: 0,
-                          color: isUnlocked && isCorrupted ? '#00ff41' : displayCorrupted ? '#38bdf8' : '#00d4ff',
-                          fontWeight: displayCorrupted ? 'bold' : 'normal'
+                          color: isUnlocked && isCorrupted ? '#10b981' : displayCorrupted ? '#38bdf8' : '#00d4ff',
+                          fontWeight: displayCorrupted || (isUnlocked && isCorrupted) ? 'bold' : 'normal'
                         }}
                       >
                         {isUnlocked && isCorrupted ? 'READ' : displayCorrupted ? 'PURIFY' : 'EXPLORE'} <i className="fas fa-arrow-right"></i>
