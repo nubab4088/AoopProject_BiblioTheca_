@@ -21,7 +21,7 @@ export const books = [
     author: "Thomas H. Cormen",
     category: "COMPUTER SCIENCE",
     isbn: "9780262033848",
-    isCorrupted: false,
+    isCorrupted: true,
     description: "The standard textbook on algorithms.",
     requiredGameId: 'circuit-overload',
     virusName: 'LOGIC_BOMB'
@@ -32,7 +32,7 @@ export const books = [
     author: "Robert C. Martin",
     category: "SOFTWARE ENGINEERING",
     isbn: "9780132350884",
-    isCorrupted: false,
+    isCorrupted: true,
     description: "Agile software craftsmanship.",
     requiredGameId: 'cipher-breaker',
     virusName: 'ENCRYPTED_SYNTAX'
@@ -43,7 +43,7 @@ export const books = [
     author: "Erich Gamma",
     category: "SOFTWARE ENGINEERING",
     isbn: "9780201633610",
-    isCorrupted: false,
+    isCorrupted: true,
     description: "Reusable object-oriented software.",
     requiredGameId: 'memory-matrix',
     virusName: 'PATTERN_DECAY'
@@ -87,7 +87,7 @@ export const books = [
     author: "Jorge Luis Borges",
     category: "FICTION",
     isbn: "9780811200127",
-    isCorrupted: false,
+    isCorrupted: true,
     description: "The universe is a library.",
     requiredGameId: 'memory-matrix',
     virusName: 'RECURSION_VIRUS'
@@ -98,7 +98,7 @@ export const books = [
     author: "Frederick P. Brooks Jr.",
     category: "SOFTWARE ENGINEERING",
     isbn: "9780201835953",
-    isCorrupted: false,
+    isCorrupted: true,
     description: "Essays on software engineering.",
     requiredGameId: 'cipher-breaker',
     virusName: 'COMPLEXITY_LEAK'
@@ -109,7 +109,7 @@ export const books = [
     author: "Andrew Hunt",
     category: "SOFTWARE ENGINEERING",
     isbn: "9780201616224",
-    isCorrupted: false,
+    isCorrupted: true,
     description: "From journeyman to master.",
     requiredGameId: 'circuit-overload',
     virusName: 'LEGACY_CODE'
