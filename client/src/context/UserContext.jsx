@@ -1,79 +1,123 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 
 /**
- * UserContext - Centralized User State Management with Persistence
+ * UserContext - Production-Grade Persistent User State Management
  * 
- * Manages:
- * - User profile (name, ID)
- * - Knowledge Points (KP) with persistence
- * - Unlocked books tracking
- * - Completed games tracking
+ * Architecture:
+ * - Lazy initialization from localStorage (instant load on mount)
+ * - Auto-save on every state mutation (real-time persistence)
+ * - Type-safe operations with duplicate prevention
+ * - Graceful error handling and data validation
  * 
- * Features:
- * - Automatic localStorage sync
- * - Type-safe operations
- * - Prevents negative KP
- * - Duplicate prevention for unlocks
+ * Persistence Strategy:
+ * 1. LOAD: Check localStorage on app startup
+ * 2. SAVE: Auto-sync to localStorage on every state change
+ * 3. RESET: Clear all data and restart fresh
+ * 
+ * User State Schema:
+ * {
+ *   name: string - User display name
+ *   kp: number - Knowledge Points (XP system)
+ *   unlockedBooks: number[] - IDs of restored books
+ *   completedGames: string[] - Game completion records
+ * }
  */
 
 const UserContext = createContext();
 
-// Storage keys
-const STORAGE_KEY = 'bibliotheca_user';
+// 🔑 STORAGE KEY - Change this to force a data reset for all users
+const STORAGE_KEY = 'library_user_data';
 
-// Default user state - NEW USERS START WITH ZERO UNLOCKED BOOKS
-const DEFAULT_USER = {
-  name: 'Guest',
-  id: null,
-  kp: 100,
-  unlockedBooks: [],      // ✅ CRITICAL: Empty array for new users
-  completedGames: []      // ✅ CRITICAL: Empty array for new users
-};
+// 🆕 DEFAULT STATE - Fresh User Profile (No Progress)
+// ⚠️ CRITICAL: This is the ONLY source of truth for new users
+const DEFAULT_USER = Object.freeze({
+  name: 'Guest Agent',
+  kp: 100,                // STRICTLY 100 - DO NOT MODIFY
+  unlockedBooks: [],      // STRICTLY EMPTY - All books start corrupted
+  completedGames: []      // STRICTLY EMPTY - No games completed
+});
 
 export const UserProvider = ({ children }) => {
-  // 🎯 INITIALIZE STATE FROM LOCALSTORAGE - NEW USERS GET EMPTY ARRAYS
+  // 🎯 BULLETPROOF LAZY INITIALIZATION: Load from localStorage ONCE on mount
   const [user, setUser] = useState(() => {
+    console.log('🔍 [UserContext] Initializing...');
+    
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        console.log('✅ User state loaded from localStorage:', parsed);
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      
+      // ✅ RETURNING USER: Load existing progress
+      if (savedData && savedData !== 'undefined' && savedData !== 'null') {
+        const parsed = JSON.parse(savedData);
         
-        // ⚠️ SAFETY CHECK: Ensure arrays exist and are valid
-        return {
-          ...DEFAULT_USER,
-          ...parsed,
-          unlockedBooks: Array.isArray(parsed.unlockedBooks) ? parsed.unlockedBooks : [],
-          completedGames: Array.isArray(parsed.completedGames) ? parsed.completedGames : []
+        // 🛡️ STRICT DATA VALIDATION: Ensure ALL required fields exist and are valid
+        const validatedUser = {
+          name: typeof parsed.name === 'string' && parsed.name.trim() !== '' 
+            ? parsed.name 
+            : DEFAULT_USER.name,
+          kp: typeof parsed.kp === 'number' && !isNaN(parsed.kp) && isFinite(parsed.kp)
+            ? Math.max(0, Math.floor(parsed.kp))
+            : DEFAULT_USER.kp,
+          unlockedBooks: Array.isArray(parsed.unlockedBooks) 
+            ? parsed.unlockedBooks.filter(id => typeof id === 'number' || !isNaN(parseInt(id)))
+            : [],
+          completedGames: Array.isArray(parsed.completedGames) 
+            ? parsed.completedGames.filter(key => typeof key === 'string')
+            : []
         };
+        
+        console.log('✅ [UserContext] RETURNING USER - Loaded:', {
+          name: validatedUser.name,
+          kp: validatedUser.kp,
+          unlockedBooksCount: validatedUser.unlockedBooks.length,
+          completedGamesCount: validatedUser.completedGames.length
+        });
+        
+        return validatedUser;
       }
     } catch (error) {
-      console.error('❌ Error loading user from localStorage:', error);
-      // On error, clear corrupted data and start fresh
-      localStorage.removeItem(STORAGE_KEY);
+      // 🚨 CORRUPTED DATA: Clear and start fresh
+      console.error('❌ [UserContext] Failed to parse localStorage:', error);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {
+        console.error('❌ [UserContext] Failed to remove corrupted data:', e);
+      }
     }
     
-    // 🆕 NEW USER: Start with empty unlocked books
-    console.log('ℹ️ New user - Starting with ZERO unlocked books');
-    return DEFAULT_USER;
+    // 🆕 NEW USER: Start with pristine fresh state
+    console.log('🆕 [UserContext] NEW USER - Starting with clean slate:', {
+      name: DEFAULT_USER.name,
+      kp: DEFAULT_USER.kp,
+      unlockedBooks: DEFAULT_USER.unlockedBooks,
+      completedGames: DEFAULT_USER.completedGames
+    });
+    
+    // Return a DEEP COPY to prevent any reference mutations
+    return JSON.parse(JSON.stringify(DEFAULT_USER));
   });
 
-  // 💾 PERSIST TO LOCALSTORAGE ON EVERY STATE CHANGE
+  // 💾 AUTO-SAVE: Persist to localStorage on EVERY state change
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-      console.log('💾 User state saved to localStorage:', user);
+      const serialized = JSON.stringify(user);
+      localStorage.setItem(STORAGE_KEY, serialized);
+      console.log('💾 State auto-saved to localStorage:', user);
     } catch (error) {
-      console.error('❌ Error saving user to localStorage:', error);
+      console.error('❌ Failed to save to localStorage:', error);
+      
+      // 🚨 QUOTA EXCEEDED: Notify user (optional)
+      if (error.name === 'QuotaExceededError') {
+        console.warn('⚠️ localStorage quota exceeded - data may not persist');
+      }
     }
-  }, [user]);
+  }, [user]); // Triggers on ANY user state change
 
-  // 🎮 UPDATE KP FUNCTION
+  // 🎮 UPDATE KP (XP SYSTEM)
   const updateKP = (amount) => {
     setUser(prev => {
-      const newKP = Math.max(0, prev.kp + amount); // Prevent negative KP
+      const newKP = Math.max(0, prev.kp + amount); // Floor at 0 (no negative KP)
       
-      console.log(`🎯 KP Update: ${prev.kp} ${amount >= 0 ? '+' : ''}${amount} = ${newKP}`);
+      console.log(`💰 KP ${amount >= 0 ? 'GAINED' : 'LOST'}: ${prev.kp} ${amount >= 0 ? '+' : ''}${amount} = ${newKP}`);
       
       return {
         ...prev,
@@ -82,35 +126,42 @@ export const UserProvider = ({ children }) => {
     });
   };
 
-  // 📚 UNLOCK BOOK FUNCTION - ENHANCED WITH IMMEDIATE PERSISTENCE
+  // 📚 UNLOCK BOOK (Add to collection)
   const unlockBook = (bookId) => {
     return new Promise((resolve) => {
       setUser(prev => {
-        // 🔍 NORMALIZE ID: Handle both string and number formats
-        const normalizedId = parseInt(bookId);
+        // 🔍 NORMALIZE ID: Convert to integer for consistency
+        const normalizedId = parseInt(bookId, 10);
         
-        // Prevent duplicates - check both formats
-        if (prev.unlockedBooks.includes(normalizedId) || 
-            prev.unlockedBooks.includes(String(normalizedId))) {
-          console.log(`ℹ️ Book ${normalizedId} already unlocked`);
+        // ❌ INVALID ID: Reject non-numeric IDs
+        if (isNaN(normalizedId)) {
+          console.error(`❌ Invalid book ID: ${bookId}`);
+          resolve(false);
+          return prev;
+        }
+        
+        // ℹ️ ALREADY UNLOCKED: Prevent duplicates
+        if (prev.unlockedBooks.includes(normalizedId)) {
+          console.log(`ℹ️ Book ${normalizedId} already unlocked - skipping`);
           resolve(false);
           return prev;
         }
 
-        console.log(`🔓 UNLOCKING Book ${normalizedId}...`);
-        
+        // ✅ UNLOCK: Add to collection
         const updatedBooks = [...prev.unlockedBooks, normalizedId];
         const newState = {
           ...prev,
           unlockedBooks: updatedBooks
         };
 
-        // ⚡ CRITICAL: Immediate localStorage write (bypass useEffect delay)
+        console.log(`🔓 BOOK UNLOCKED: ${normalizedId} | Total: ${updatedBooks.length}`);
+        
+        // ⚡ CRITICAL: Immediate persistence (don't wait for useEffect)
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-          console.log(`✅ Book ${normalizedId} UNLOCKED and PERSISTED to localStorage:`, updatedBooks);
+          console.log('💾 Unlock persisted immediately to localStorage');
         } catch (error) {
-          console.error('❌ Failed to persist unlock to localStorage:', error);
+          console.error('❌ Failed to persist unlock:', error);
         }
 
         resolve(true);
@@ -119,18 +170,18 @@ export const UserProvider = ({ children }) => {
     });
   };
 
-  // 🎮 MARK GAME AS COMPLETED
+  // 🎯 MARK GAME AS COMPLETED
   const completeGame = (gameId, bookId) => {
     setUser(prev => {
       const gameKey = `${gameId}-${bookId}`;
       
-      // Prevent duplicates
+      // ℹ️ ALREADY COMPLETED: Prevent duplicates
       if (prev.completedGames.includes(gameKey)) {
-        console.log(`ℹ️ Game ${gameKey} already completed`);
+        console.log(`ℹ️ Game ${gameKey} already completed - skipping`);
         return prev;
       }
 
-      console.log(`✅ Game ${gameKey} completed!`);
+      console.log(`✅ GAME COMPLETED: ${gameKey}`);
       
       return {
         ...prev,
@@ -139,44 +190,67 @@ export const UserProvider = ({ children }) => {
     });
   };
 
-  // 👤 UPDATE USER INFO
+  // 👤 UPDATE USER PROFILE (Name, etc.)
   const updateUser = (userData) => {
-    setUser(prev => ({
-      ...prev,
-      ...userData
-    }));
+    setUser(prev => {
+      const updated = {
+        ...prev,
+        ...userData
+      };
+      
+      console.log('👤 User profile updated:', updated);
+      return updated;
+    });
   };
 
-  // 🔄 RESET USER TO DEFAULT - CLEARS ALL UNLOCKED BOOKS
-  const resetUser = () => {
-    console.log('🔄 Resetting user to default state - CLEARING all unlocked books');
-    setUser(DEFAULT_USER);
-    localStorage.removeItem(STORAGE_KEY);
+  // 🔄 RESET PROGRESS (Clear all data, keep name)
+  const resetProgress = () => {
+    const resetState = {
+      ...DEFAULT_USER,
+      name: user.name // Keep current name
+    };
+    
+    console.log('🔄 PROGRESS RESET - Clearing all unlocked books and games');
+    setUser(resetState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(resetState));
   };
 
-  // 🚪 LOGOUT - ALSO CLEARS UNLOCKED BOOKS
-  const logout = () => {
-    console.log('🚪 User logged out - CLEARING all unlocked books');
-    resetUser();
-  };
-
-  // 🧹 NEW UTILITY: Clear localStorage and reload (for testing/demo reset)
+  // 🧹 CLEAR ALL DATA (Full reset to default)
   const clearAllData = () => {
-    console.log('🧹 CLEARING ALL USER DATA');
+    console.log('🧹 CLEARING ALL USER DATA - Full reset');
     localStorage.removeItem(STORAGE_KEY);
-    setUser(DEFAULT_USER);
+    setUser({ ...DEFAULT_USER });
+  };
+
+  // 🔃 RELOAD APP (Useful for demo/testing)
+  const reloadApp = () => {
+    console.log('🔃 Reloading application...');
     window.location.reload();
   };
 
+  // 🚪 LOGOUT (Reset to guest)
+  const logout = () => {
+    console.log('🚪 User logged out - Resetting to Guest');
+    clearAllData();
+    reloadApp();
+  };
+
+  // 📊 CONTEXT VALUE: All exposed functions and state
   const value = {
+    // State
     user,
-    updateKP,
-    unlockBook,
-    completeGame,
-    updateUser,
-    resetUser,
-    logout,
-    clearAllData  // ✨ NEW: Expose clear function for dev/testing
+    
+    // Core Functions
+    updateKP,          // Update Knowledge Points
+    unlockBook,        // Unlock a book (async)
+    completeGame,      // Mark game as completed
+    updateUser,        // Update user profile
+    
+    // Utility Functions
+    resetProgress,     // Clear progress but keep name
+    clearAllData,      // Full reset to default
+    logout,            // Logout and reload
+    reloadApp          // Force page reload
   };
 
   return (
@@ -186,12 +260,14 @@ export const UserProvider = ({ children }) => {
   );
 };
 
-// Custom hook for easy access
+// 🪝 CUSTOM HOOK: Easy access to UserContext
 export const useUser = () => {
   const context = useContext(UserContext);
+  
   if (!context) {
-    throw new Error('useUser must be used within UserProvider');
+    throw new Error('useUser must be used within a UserProvider');
   }
+  
   return context;
 };
 

@@ -152,13 +152,17 @@ function DungeonPlatform({ onWin, unlockedBooks }) {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
-  // 🎯 ROBUST GAME COMPLETION HANDLER - CONNECTED TO USERCONTEXT
+  // 🎯 ENHANCED GAME COMPLETION HANDLER - WITH REPLAY DETECTION
   const handleGameComplete = async (kpAmount, gameId) => {
     setIsPlaying(false);
 
     const isWin = kpAmount > 0;
     // 🔍 CRITICAL: Safe ID comparison - normalize both to strings
     const isCorrectGame = targetBook && String(gameId) === String(targetBook.requiredGameId);
+
+    // 🎮 CHECK IF BOOK IS ALREADY UNLOCKED (Replay Detection)
+    const isAlreadyUnlocked = user?.unlockedBooks?.includes(String(targetBook?.id)) || 
+                              user?.unlockedBooks?.includes(Number(targetBook?.id));
 
     if (isWin) {
       playWin();
@@ -167,13 +171,14 @@ function DungeonPlatform({ onWin, unlockedBooks }) {
       await updateKP(kpAmount); // Game economy
       updateUserKP(kpAmount);   // User context (persisted)
 
-      // ✅ UNLOCK LOGIC: Only if correct game was played
-      if (isCorrectGame) {
-        console.log(`🎉 BOOK UNLOCKED! Correct game '${gameId}' completed for book '${targetBook.title}'`);
+      // ✅ FIRST-TIME WIN LOGIC: Only if correct game AND not already unlocked
+      if (isCorrectGame && !isAlreadyUnlocked) {
+        console.log(`🎉 FIRST-TIME UNLOCK! Correct game '${gameId}' completed for book '${targetBook.title}'`);
         
-        // 🔓 UNLOCK BOOK IN USER CONTEXT (PERSISTED) - AWAIT to ensure completion
+        // 🔓 UNLOCK BOOK IN USER CONTEXT (PERSISTED)
         await unlockBook(parseInt(bookId));
         
+        // 🎊 SHOW SUCCESS MODAL
         addToast('success', '🎉 SYSTEM RESTORED!', `${targetBook.title} has been unlocked!`, kpAmount);
         
         // Call parent handler if provided
@@ -181,15 +186,28 @@ function DungeonPlatform({ onWin, unlockedBooks }) {
           await onWin(parseInt(bookId));
         }
 
-        // ⏱️ CRITICAL: Wait 1.5s before navigation to ensure state persistence
+        // ⏱️ REDIRECT TO BOOK DETAILS PAGE
         setTimeout(() => {
           navigate(`/book/${bookId}`, { 
             state: { purgeSuccess: true },
             replace: false 
           });
         }, 1500);
-      } else {
-        // ⚠️ WRONG GAME - Award KP but don't unlock
+      } 
+      // 🔄 REPLAY WIN LOGIC: Correct game but already unlocked
+      else if (isCorrectGame && isAlreadyUnlocked) {
+        console.log(`🔄 REPLAY WIN - Book ${targetBook.id} already unlocked. KP awarded without notification.`);
+        
+        // 💚 SHOW MAINTENANCE COMPLETE TOAST (No unlock modal)
+        addToast('success', '✅ MAINTENANCE COMPLETE', `System stability improved. +${kpAmount} KP earned!`, kpAmount);
+        
+        // ⏱️ OPTIONAL: Stay on page or quiet redirect after short delay
+        setTimeout(() => {
+          navigate(`/book/${bookId}`, { replace: true });
+        }, 2000);
+      }
+      // ⚠️ WRONG GAME - Award KP but don't unlock
+      else {
         const requiredGameName = targetBook ? getGameName(targetBook.requiredGameId) : 'UNKNOWN';
         console.log(`⚠️ Wrong game! '${gameId}' won't unlock '${targetBook?.title}'. Required: '${requiredGameName}'`);
         addToast('warning', 'GOOD PRACTICE!', `But ${targetBook?.title} requires ${requiredGameName}!`, kpAmount);

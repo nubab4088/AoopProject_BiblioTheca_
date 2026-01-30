@@ -3,21 +3,23 @@ import useUiSound from '../hooks/useUiSound';
 import ToastNotification from './ToastNotification';
 
 /**
- * CircuitOverloadGame - "Pipe Dream" Logic Puzzle with Power Flow Visualization
+ * CircuitOverloadGame - Demo-Optimized "Pipe Dream" Puzzle
  * 
- * Premium Features:
- * - Real-time power flow visualization using DFS pathfinding
- * - Smooth tile rotation animations
- * - Dynamic neon glow on active paths
- * - Interactive hover effects with brightness boost
+ * Simplified for demo purposes:
+ * - Pre-defined solved grid with a clear path
+ * - Only 5 tiles randomly rotated at start
+ * - Visual feedback shows which tiles are correctly aligned
+ * - Progress bar tracks completion
+ * - Winnable in under 10 seconds
  * 
  * Difficulty: HARD | Win: +60 KP | Loss: -30 KP
  */
 
 const GRID_SIZE = 4;
-const TIME_LIMIT = 30; // seconds
+const TIME_LIMIT = 60; // Increased time for demo
 const KP_REWARD = 60;
 const KP_PENALTY = -30;
+const TILES_TO_SCRAMBLE = 5;
 
 // Tile types
 const TILES = {
@@ -27,19 +29,47 @@ const TILES = {
   CURVE_TR: 'curve-tr',
   CURVE_BL: 'curve-bl',
   CURVE_BR: 'curve-br',
-  T_TOP: 't-top',
-  T_RIGHT: 't-right',
-  T_BOTTOM: 't-bottom',
-  T_LEFT: 't-left',
 };
+
+// 🎯 SOLVED GRID: Pre-defined perfect path from top-left to bottom-right
+// This creates a clean S-shaped path that's easy to visualize
+const SOLVED_GRID = [
+  // Row 0: Start (0,0) → right → right → down
+  [
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: true, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.CURVE_BL, rotation: 0, isSource: false, isTerminal: false }
+  ],
+  // Row 1: down ← left ← left ← up
+  [
+    { type: TILES.CURVE_TR, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_V, rotation: 0, isSource: false, isTerminal: false }
+  ],
+  // Row 2: down → right → right → up
+  [
+    { type: TILES.STRAIGHT_V, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.CURVE_TL, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.CURVE_BR, rotation: 0, isSource: false, isTerminal: false }
+  ],
+  // Row 3: End (3,3) ← left ← left ← left
+  [
+    { type: TILES.CURVE_TR, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: false, isTerminal: false },
+    { type: TILES.STRAIGHT_H, rotation: 0, isSource: true, isTerminal: true }
+  ]
+];
 
 const CircuitOverloadGame = ({ onComplete, onClose }) => {
   const [grid, setGrid] = useState([]);
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [gameStatus, setGameStatus] = useState('playing');
   const [toasts, setToasts] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [activePath, setActivePath] = useState(new Set()); // 🆕 Track powered tiles
+  const [systemIntegrity, setSystemIntegrity] = useState(0);
 
   const { playClick, playWin, playPowerUp, stopCountdown, stopCountdown2 } = useUiSound();
   
@@ -47,13 +77,10 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
 
   // ✅ KILL SWITCH: Centralized cleanup function
   const stopGame = () => {
-    // Clear timer immediately
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-
-    // Stop and reset audio immediately
     stopCountdown();
     stopCountdown2();
   };
@@ -63,7 +90,7 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
     return () => stopGame();
   }, []);
 
-  // Initialize grid
+  // 🎯 INITIALIZE GRID: Load solved grid and scramble 5 tiles
   useEffect(() => {
     initializeGrid();
   }, []);
@@ -96,49 +123,54 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
     };
   }, [gameStatus]);
 
-  // Check connection after each move
+  // 🎯 CHECK WIN CONDITION: When integrity reaches 100%
   useEffect(() => {
     if (grid.length > 0) {
-      const { connected, path } = calculatePowerFlow();
-      setIsConnected(connected);
-      setActivePath(path);
+      const integrity = calculateSystemIntegrity();
+      setSystemIntegrity(integrity);
       
-      if (connected && gameStatus === 'playing') {
+      if (integrity === 100 && gameStatus === 'playing') {
         handleWin();
       }
     }
   }, [grid]);
 
   const initializeGrid = () => {
-    const newGrid = [];
-    const tileTypes = [
-      TILES.STRAIGHT_H, TILES.STRAIGHT_V,
-      TILES.CURVE_TL, TILES.CURVE_TR, TILES.CURVE_BL, TILES.CURVE_BR
-    ];
+    // Deep copy the solved grid
+    const newGrid = SOLVED_GRID.map(row => 
+      row.map(tile => ({ ...tile }))
+    );
 
+    // Get all scrambleable positions (exclude source and terminal)
+    const scrambleablePositions = [];
     for (let row = 0; row < GRID_SIZE; row++) {
-      const gridRow = [];
       for (let col = 0; col < GRID_SIZE; col++) {
-        // Random tile with random rotation
-        const tileType = tileTypes[Math.floor(Math.random() * tileTypes.length)];
-        const rotation = (Math.floor(Math.random() * 4) * 90);
-        
-        gridRow.push({
-          type: tileType,
-          rotation: rotation,
-          isSource: row === 0 && col === 0,
-          isTerminal: row === GRID_SIZE - 1 && col === GRID_SIZE - 1
-        });
+        // Skip source (0,0) and terminal (3,3)
+        if (!(row === 0 && col === 0) && !(row === 3 && col === 3)) {
+          scrambleablePositions.push({ row, col });
+        }
       }
-      newGrid.push(gridRow);
     }
 
+    // Randomly select and rotate TILES_TO_SCRAMBLE tiles
+    const shuffled = scrambleablePositions.sort(() => Math.random() - 0.5);
+    const tilesToScramble = shuffled.slice(0, TILES_TO_SCRAMBLE);
+
+    tilesToScramble.forEach(({ row, col }) => {
+      // Rotate by 90, 180, or 270 degrees (never 0 or 360 to ensure it's actually scrambled)
+      const rotations = [90, 180, 270];
+      const randomRotation = rotations[Math.floor(Math.random() * rotations.length)];
+      newGrid[row][col].rotation = randomRotation;
+    });
+
+    console.log('🎮 Grid initialized with', TILES_TO_SCRAMBLE, 'scrambled tiles:', tilesToScramble);
     setGrid(newGrid);
   };
 
   const rotateTile = (row, col) => {
     if (gameStatus !== 'playing') return;
-    if ((row === 0 && col === 0) || (row === GRID_SIZE - 1 && col === GRID_SIZE - 1)) return;
+    // Block rotation of source and terminal
+    if ((row === 0 && col === 0) || (row === 3 && col === 3)) return;
 
     playClick();
 
@@ -149,136 +181,49 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
     });
   };
 
-  const checkConnection = () => {
-    // Simple path-finding: Check if source connects to terminal
-    const visited = new Set();
-    const queue = [[0, 0]];
+  // 🎯 CALCULATE SYSTEM INTEGRITY: Percentage of correctly rotated tiles
+  const calculateSystemIntegrity = () => {
+    let correctTiles = 0;
+    const totalTiles = GRID_SIZE * GRID_SIZE;
 
-    while (queue.length > 0) {
-      const [row, col] = queue.shift();
-      const key = `${row},${col}`;
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        const currentRotation = grid[row][col].rotation;
+        const solvedRotation = SOLVED_GRID[row][col].rotation;
 
-      if (visited.has(key)) continue;
-      visited.add(key);
-
-      if (row === GRID_SIZE - 1 && col === GRID_SIZE - 1) {
-        return true; // Reached terminal
-      }
-
-      // Get connected neighbors
-      const neighbors = getConnectedNeighbors(row, col);
-      neighbors.forEach(([nRow, nCol]) => {
-        if (!visited.has(`${nRow},${nCol}`)) {
-          queue.push([nRow, nCol]);
+        if (currentRotation === solvedRotation) {
+          correctTiles++;
         }
-      });
+      }
     }
 
-    return false;
+    return Math.round((correctTiles / totalTiles) * 100);
   };
 
-  const getConnectedNeighbors = (row, col) => {
-    const tile = grid[row][col];
-    const connections = getTileConnections(tile);
-    const neighbors = [];
-
-    connections.forEach(dir => {
-      let newRow = row;
-      let newCol = col;
-
-      if (dir === 'top') newRow--;
-      if (dir === 'bottom') newRow++;
-      if (dir === 'left') newCol--;
-      if (dir === 'right') newCol++;
-
-      if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
-        const neighborTile = grid[newRow][newCol];
-        const neighborConnections = getTileConnections(neighborTile);
-        
-        const oppositeDir = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }[dir];
-        
-        if (neighborConnections.includes(oppositeDir)) {
-          neighbors.push([newRow, newCol]);
-        }
-      }
-    });
-
-    return neighbors;
-  };
-
-  const getTileConnections = (tile) => {
-    const baseConnections = {
-      [TILES.STRAIGHT_H]: ['left', 'right'],
-      [TILES.STRAIGHT_V]: ['top', 'bottom'],
-      [TILES.CURVE_TL]: ['top', 'left'],
-      [TILES.CURVE_TR]: ['top', 'right'],
-      [TILES.CURVE_BL]: ['bottom', 'left'],
-      [TILES.CURVE_BR]: ['bottom', 'right'],
-    };
-
-    const connections = baseConnections[tile.type] || [];
-    const rotatedConnections = connections.map(dir => {
-      const rotations = tile.rotation / 90;
-      const dirs = ['top', 'right', 'bottom', 'left'];
-      const currentIndex = dirs.indexOf(dir);
-      return dirs[(currentIndex + rotations) % 4];
-    });
-
-    return rotatedConnections;
-  };
-
-  // 🆕 DFS-BASED POWER FLOW CALCULATOR
-  const calculatePowerFlow = () => {
-    const visited = new Set();
-    const poweredTiles = new Set();
-    const stack = [[0, 0]]; // Start from source
-
-    while (stack.length > 0) {
-      const [row, col] = stack.pop();
-      const key = `${row},${col}`;
-
-      if (visited.has(key)) continue;
-      visited.add(key);
-      poweredTiles.add(key); // This tile is powered
-
-      // Check if we reached the terminal
-      if (row === GRID_SIZE - 1 && col === GRID_SIZE - 1) {
-        return { connected: true, path: poweredTiles };
-      }
-
-      // Get all physically connected neighbors
-      const neighbors = getConnectedNeighbors(row, col);
-      neighbors.forEach(([nRow, nCol]) => {
-        if (!visited.has(`${nRow},${nCol}`)) {
-          stack.push([nRow, nCol]);
-        }
-      });
-    }
-
-    return { connected: false, path: poweredTiles };
+  // 🎯 CHECK IF TILE IS CORRECTLY ALIGNED
+  const isTileCorrect = (row, col) => {
+    if (!grid[row] || !grid[row][col]) return false;
+    const currentRotation = grid[row][col].rotation;
+    const solvedRotation = SOLVED_GRID[row][col].rotation;
+    return currentRotation === solvedRotation;
   };
 
   const handleWin = async () => {
-    // ✅ KILL SWITCH: Stop everything immediately at the start
     stopGame();
-    
     setGameStatus('won');
     playWin();
 
     try {
       await onComplete(KP_REWARD);
-      addToast('success', 'CIRCUIT CONNECTED!', 'Power flow established', KP_REWARD);
+      addToast('success', 'CIRCUIT CONNECTED!', 'System integrity restored', KP_REWARD);
     } catch (error) {
       console.error('Failed to award KP:', error);
     }
   };
 
   const handleTimeout = () => {
-    // ✅ KILL SWITCH: Stop everything immediately at the start
     stopGame();
-    
     setGameStatus('lost');
-    
     onComplete(KP_PENALTY);
     addToast('error', 'SYSTEM OVERLOAD!', 'Circuit failed to connect', KP_PENALTY);
   };
@@ -294,13 +239,11 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
 
   const renderTile = (tile, row, col) => {
     const isClickable = !tile.isSource && !tile.isTerminal && gameStatus === 'playing';
-    const tileKey = `${row},${col}`;
-    const isPowered = activePath.has(tileKey);
-    const isComplete = isConnected && isPowered;
+    const isCorrect = isTileCorrect(row, col);
 
     return (
       <div
-        key={tileKey}
+        key={`${row}-${col}`}
         onClick={() => isClickable && rotateTile(row, col)}
         style={{
           ...styles.tile,
@@ -310,24 +253,20 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
             : tile.isTerminal
             ? 'linear-gradient(135deg, #00d4ff, #0088cc)'
             : 'rgba(0, 0, 0, 0.5)',
+          // 🎯 CYAN GLOW for correctly aligned tiles
           borderColor: tile.isSource || tile.isTerminal 
             ? '#fff' 
-            : isPowered 
-            ? (isComplete ? '#00ff88' : '#00d4ff')
+            : isCorrect 
+            ? '#00d4ff'
             : '#ff00ff',
-          // 🆕 NEON GLOW for powered tiles
-          boxShadow: isPowered 
-            ? (isComplete 
-              ? '0 0 25px rgba(0, 255, 136, 0.8), inset 0 0 15px rgba(0, 255, 136, 0.3)' 
-              : '0 0 20px rgba(0, 212, 255, 0.6), inset 0 0 10px rgba(0, 212, 255, 0.2)')
+          boxShadow: isCorrect && !tile.isSource && !tile.isTerminal
+            ? '0 0 15px #00d4ff, inset 0 0 10px rgba(0, 212, 255, 0.3)'
             : 'none',
           transform: `rotate(${tile.rotation}deg)`,
-          // 🆕 SMOOTH ROTATION TRANSITION
           transition: 'all 0.3s ease',
-          // 🆕 COMPLETE PATH PULSE ANIMATION
-          animation: isComplete ? 'pathPulse 1.5s ease-in-out infinite' : 'none',
+          // Pulse animation for correct tiles
+          animation: isCorrect && !tile.isSource && !tile.isTerminal ? 'correctPulse 2s ease-in-out infinite' : 'none',
         }}
-        // 🆕 HOVER BRIGHTNESS BOOST
         onMouseEnter={(e) => {
           if (isClickable) {
             e.currentTarget.style.filter = 'brightness(1.3)';
@@ -343,22 +282,17 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
         {tile.isTerminal && <div style={styles.label}>TERMINAL</div>}
         {!tile.isSource && !tile.isTerminal && (
           <svg width="100%" height="100%" viewBox="0 0 100 100">
-            {renderTilePath(tile.type, isPowered, isComplete)}
+            {renderTilePath(tile.type, isCorrect)}
           </svg>
         )}
       </div>
     );
   };
 
-  // 🆕 ENHANCED PATH RENDERING with dynamic colors
-  const renderTilePath = (type, isPowered, isComplete) => {
-    const color = isComplete 
-      ? '#00ff88' 
-      : isPowered 
-      ? '#00d4ff' 
-      : '#ff00ff';
+  const renderTilePath = (type, isCorrect) => {
+    const color = isCorrect ? '#00d4ff' : '#ff00ff';
     const strokeWidth = 8;
-    const glowFilter = isPowered ? 'url(#glow)' : 'none';
+    const glowFilter = isCorrect ? 'url(#glow)' : 'none';
 
     const pathElement = (() => {
       switch (type) {
@@ -381,7 +315,6 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
 
     return (
       <>
-        {/* SVG Filter for Glow Effect */}
         <defs>
           <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -423,6 +356,36 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
           </button>
         </div>
 
+        {/* 🎯 SYSTEM INTEGRITY PROGRESS BAR */}
+        <div style={styles.integrityContainer}>
+          <div style={styles.integrityLabel}>
+            <span>SYSTEM INTEGRITY</span>
+            <span style={{ 
+              color: systemIntegrity === 100 ? '#00ff88' : systemIntegrity > 60 ? '#00d4ff' : '#ffaa00',
+              fontSize: '1.5rem',
+              fontWeight: 'bold'
+            }}>
+              {systemIntegrity}%
+            </span>
+          </div>
+          <div style={styles.progressBarContainer}>
+            <div 
+              style={{
+                ...styles.progressBar,
+                width: `${systemIntegrity}%`,
+                background: systemIntegrity === 100 
+                  ? 'linear-gradient(90deg, #00ff88, #00aa66)'
+                  : systemIntegrity > 60
+                  ? 'linear-gradient(90deg, #00d4ff, #0088cc)'
+                  : 'linear-gradient(90deg, #ffaa00, #ff6600)',
+                boxShadow: systemIntegrity === 100
+                  ? '0 0 20px rgba(0, 255, 136, 0.8)'
+                  : '0 0 15px rgba(0, 212, 255, 0.6)'
+              }}
+            />
+          </div>
+        </div>
+
         {/* Status Bar */}
         <div style={styles.statusBar}>
           <div style={styles.statusItem}>
@@ -432,7 +395,7 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
           <div style={styles.statusItem}>
             <span style={{ color: '#888', fontSize: '0.8rem' }}>TIME LEFT</span>
             <span style={{ 
-              color: timeLeft <= 5 ? '#ff4444' : '#00ff88', 
+              color: timeLeft <= 10 ? '#ff4444' : '#00ff88', 
               fontSize: '1.2rem', 
               fontWeight: 'bold' 
             }}>
@@ -440,13 +403,9 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
             </span>
           </div>
           <div style={styles.statusItem}>
-            <span style={{ color: '#888', fontSize: '0.8rem' }}>STATUS</span>
-            <span style={{ 
-              color: isConnected ? '#00ff88' : '#ffaa00', 
-              fontSize: '1.2rem', 
-              fontWeight: 'bold' 
-            }}>
-              {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+            <span style={{ color: '#888', fontSize: '0.8rem' }}>REWARD</span>
+            <span style={{ color: '#ffd700', fontSize: '1.2rem', fontWeight: 'bold' }}>
+              +{KP_REWARD} KP
             </span>
           </div>
         </div>
@@ -469,7 +428,7 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
               {gameStatus === 'won' ? (
                 <>
                   <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>✓</div>
-                  <div style={styles.gameOverTitle}>POWER FLOW ESTABLISHED</div>
+                  <div style={styles.gameOverTitle}>SYSTEM INTEGRITY RESTORED</div>
                   <div style={styles.gameOverMessage}>Circuit successfully connected</div>
                   <div style={styles.kpReward}>+{KP_REWARD} KP</div>
                 </>
@@ -490,22 +449,28 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
 
         {/* Instructions */}
         <div style={styles.instructions}>
-          <div style={{ color: '#ff00ff', fontWeight: 'bold', marginBottom: '0.5rem' }}>PROTOCOL:</div>
-          <div>→ Click tiles to rotate them 90 degrees</div>
-          <div>→ Connect GREEN source (top-left) to BLUE terminal (bottom-right)</div>
-          <div>→ Complete the circuit before the {TIME_LIMIT}s timer runs out</div>
-          <div>→ Source and Terminal cannot be rotated</div>
+          <div style={{ color: '#00d4ff', fontWeight: 'bold', marginBottom: '0.5rem' }}>🎯 DEMO MODE - EASY WIN:</div>
+          <div>→ Click any tile to rotate it 90 degrees</div>
+          <div>→ Tiles with CYAN GLOW are correctly aligned</div>
+          <div>→ Align all tiles to reach 100% System Integrity</div>
+          <div>→ Only {TILES_TO_SCRAMBLE} tiles are scrambled - Find and fix them!</div>
         </div>
       </div>
 
-      {/* 🆕 KEYFRAME ANIMATIONS */}
+      {/* Animations */}
       <style>{`
-        @keyframes pathPulse {
+        @keyframes correctPulse {
           0%, 100% {
-            box-shadow: 0 0 25px rgba(0, 255, 136, 0.8), inset 0 0 15px rgba(0, 255, 136, 0.3);
+            box-shadow: 0 0 15px #00d4ff, inset 0 0 10px rgba(0, 212, 255, 0.3);
           }
           50% {
-            box-shadow: 0 0 35px rgba(0, 255, 136, 1), inset 0 0 20px rgba(0, 255, 136, 0.5);
+            box-shadow: 0 0 25px #00d4ff, inset 0 0 15px rgba(0, 212, 255, 0.5);
+          }
+        }
+
+        @keyframes progressFill {
+          from {
+            width: 0%;
           }
         }
       `}</style>
@@ -570,6 +535,43 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
+    transition: 'all 0.3s ease',
+  },
+  integrityContainer: {
+    marginBottom: '2rem',
+    background: 'rgba(0, 0, 0, 0.4)',
+    padding: '1.5rem',
+    borderRadius: '12px',
+    border: '2px solid rgba(0, 212, 255, 0.3)',
+  },
+  integrityLabel: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1rem',
+    color: '#00d4ff',
+    fontSize: '0.9rem',
+    letterSpacing: '2px',
+    fontWeight: 'bold',
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: '30px',
+    background: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: '15px',
+    overflow: 'hidden',
+    border: '2px solid rgba(0, 212, 255, 0.3)',
+  },
+  progressBar: {
+    height: '100%',
+    transition: 'all 0.5s ease',
+    borderRadius: '13px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+    fontSize: '0.9rem',
+    color: '#000',
   },
   statusBar: {
     display: 'grid',
@@ -614,7 +616,6 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'all 0.3s ease',
     position: 'relative',
   },
   label: {
@@ -679,10 +680,11 @@ const styles = {
     fontWeight: 'bold',
     cursor: 'pointer',
     letterSpacing: '2px',
+    transition: 'all 0.3s ease',
   },
   instructions: {
-    background: 'rgba(255, 0, 255, 0.05)',
-    border: '1px solid rgba(255, 0, 255, 0.3)',
+    background: 'rgba(0, 212, 255, 0.1)',
+    border: '1px solid rgba(0, 212, 255, 0.3)',
     borderRadius: '8px',
     padding: '1rem',
     fontSize: '0.9rem',

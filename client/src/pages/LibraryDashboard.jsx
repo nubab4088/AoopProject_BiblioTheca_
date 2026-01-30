@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import BookGrid from '../components/BookGrid';
 import CipherGameModal from '../components/CipherGameModal';
 import DataBrokerWidget from '../components/DataBrokerWidget';
 import { useGameEconomyContext } from '../context/GameEconomyContext';
+import { useUser } from '../context/UserContext';
 import SystemTerminal from '../components/SystemTerminal';
 import activityService from '../services/ActivityService';
+import { books as booksData } from '../data/books';
 
-const LibraryDashboard = ({ books, handleBookClick, user }) => {
+const LibraryDashboard = ({ books: booksToDisplay, handleBookClick }) => {
   const { updateKP } = useGameEconomyContext();
+  const { user } = useUser(); // Get user from context
   const [showCipherGame, setShowCipherGame] = useState(false);
   const [kpAnimated, setKpAnimated] = useState(false);
   const [activityLogs, setActivityLogs] = useState([]);
@@ -15,6 +18,51 @@ const LibraryDashboard = ({ books, handleBookClick, user }) => {
 
   // Calculate clearance level from KP
   const clearanceLevel = Math.floor((user?.kp || 0) / 100) + 1;
+
+  // 🎯 CALCULATE SYSTEM STATUS: Check if all corrupted books are restored
+  // Use booksData (from import) to get the correct list of corrupted books
+  const systemStatus = useMemo(() => {
+    const corruptedBooks = booksData.filter(book => book.isCorrupted);
+    const unlockedBooks = user?.unlockedBooks || [];
+    
+    console.log('📊 System Status Calculation:', {
+      corruptedBooks: corruptedBooks.map(b => b.id),
+      unlockedBooks,
+      corruptedCount: corruptedBooks.length
+    });
+    
+    // Check if ALL corrupted books are unlocked
+    const allRestored = corruptedBooks.every(book => 
+      unlockedBooks.includes(book.id) || unlockedBooks.includes(String(book.id))
+    );
+
+    const restoredCount = corruptedBooks.filter(book => 
+      unlockedBooks.includes(book.id) || unlockedBooks.includes(String(book.id))
+    ).length;
+
+    const totalCorrupted = corruptedBooks.length;
+    const corruptionPercentage = totalCorrupted > 0 
+      ? Math.round(((totalCorrupted - restoredCount) / totalCorrupted) * 100)
+      : 0;
+
+    console.log('✅ System Status Result:', {
+      restoredCount,
+      totalCorrupted,
+      isStable: allRestored
+    });
+
+    return {
+      isStable: allRestored,
+      restoredCount,
+      totalCorrupted,
+      corruptionPercentage,
+      status: allRestored ? 'STABLE' : 'UNSTABLE',
+      color: allRestored ? '#00ff88' : '#ff4444',
+      glowColor: allRestored ? 'rgba(0, 255, 136, 0.6)' : 'rgba(255, 68, 68, 0.6)',
+      bgColor: allRestored ? 'rgba(0, 255, 136, 0.08)' : 'rgba(255, 68, 68, 0.08)',
+      borderColor: allRestored ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 68, 68, 0.5)'
+    };
+  }, [user?.unlockedBooks]);
 
   // Animate KP counter when it changes
   useEffect(() => {
@@ -67,10 +115,10 @@ const LibraryDashboard = ({ books, handleBookClick, user }) => {
       <section className="system-status-bar" style={{
         background: 'linear-gradient(135deg, rgba(26, 11, 46, 0.95), rgba(45, 27, 105, 0.95))',
         backdropFilter: 'blur(20px)',
-        borderBottom: '2px solid rgba(255, 68, 68, 0.5)',
+        borderBottom: `2px solid ${systemStatus.borderColor}`,
         padding: '1.5rem 0',
         marginTop: '80px',
-        boxShadow: '0 4px 30px rgba(255, 68, 68, 0.2)',
+        boxShadow: `0 4px 30px ${systemStatus.glowColor}`,
         fontFamily: "'Courier New', monospace"
       }}>
         <div className="container">
@@ -148,14 +196,15 @@ const LibraryDashboard = ({ books, handleBookClick, user }) => {
               </div>
             </div>
 
-            {/* System Status Panel */}
+            {/* 🎯 DYNAMIC SYSTEM STATUS PANEL */}
             <div style={{
               textAlign: 'center',
               padding: '1rem',
-              background: 'rgba(255, 68, 68, 0.08)',
+              background: systemStatus.bgColor,
               borderRadius: '12px',
-              border: '1px solid rgba(255, 68, 68, 0.5)',
-              animation: 'pulse-warning 2s ease-in-out infinite'
+              border: `1px solid ${systemStatus.borderColor}`,
+              animation: systemStatus.isStable ? 'pulse-success 3s ease-in-out infinite' : 'pulse-warning 2s ease-in-out infinite',
+              transition: 'all 0.5s ease'
             }}>
               <div style={{
                 color: '#666',
@@ -167,24 +216,46 @@ const LibraryDashboard = ({ books, handleBookClick, user }) => {
                 SYSTEM_STATUS
               </div>
               <div style={{
-                color: '#ff4444',
+                color: systemStatus.color,
                 fontSize: '1.1rem',
                 fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.5rem'
+                gap: '0.5rem',
+                transition: 'all 0.5s ease'
               }}>
                 <span style={{
                   width: '10px',
                   height: '10px',
-                  background: '#ff4444',
+                  background: systemStatus.color,
                   borderRadius: '50%',
-                  boxShadow: '0 0 10px #ff4444',
-                  animation: 'pulse 1s infinite'
+                  boxShadow: `0 0 10px ${systemStatus.color}`,
+                  animation: systemStatus.isStable ? 'pulse-stable 2s infinite' : 'pulse 1s infinite'
                 }}></span>
-                UNSTABLE
+                {systemStatus.status}
               </div>
+              {!systemStatus.isStable && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  fontSize: '0.7rem',
+                  color: '#ff8844',
+                  letterSpacing: '1px'
+                }}>
+                  {systemStatus.restoredCount}/{systemStatus.totalCorrupted} RESTORED
+                </div>
+              )}
+              {systemStatus.isStable && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  fontSize: '0.7rem',
+                  color: '#00ff88',
+                  letterSpacing: '1px',
+                  animation: 'fadeIn 1s ease'
+                }}>
+                  ALL SYSTEMS NOMINAL
+                </div>
+              )}
             </div>
 
             {/* Knowledge Points Panel */}
@@ -461,7 +532,7 @@ const LibraryDashboard = ({ books, handleBookClick, user }) => {
 
       {/* CORE OPERATOR INTERFACE - BOOKS ONLY */}
       <BookGrid 
-        books={books}
+        books={booksToDisplay}
         handleBookClick={handleBookClick}
         showSearch={true}
         user={user}
@@ -477,6 +548,52 @@ const LibraryDashboard = ({ books, handleBookClick, user }) => {
           50% {
             opacity: 0.7;
             transform: scale(1.1);
+          }
+        }
+
+        @keyframes pulse-stable {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 0 10px #00ff88;
+          }
+          50% {
+            opacity: 0.8;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ff88;
+          }
+        }
+
+        @keyframes pulse-success {
+          0%, 100% {
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+            border-color: rgba(0, 255, 136, 0.5);
+          }
+          50% {
+            box-shadow: 0 0 25px rgba(0, 255, 136, 0.6);
+            border-color: rgba(0, 255, 136, 0.7);
+          }
+        }
+
+        @keyframes pulse-warning {
+          0%, 100% {
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+            border-color: rgba(255, 68, 68, 0.5);
+          }
+          50% {
+            box-shadow: 0 0 25px rgba(255, 68, 68, 0.6);
+            border-color: rgba(255, 68, 68, 0.7);
+          }
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
           }
         }
 
