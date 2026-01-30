@@ -3,10 +3,13 @@ import useUiSound from '../hooks/useUiSound';
 import ToastNotification from './ToastNotification';
 
 /**
- * CircuitOverloadGame - "Pipe Dream" Logic Puzzle
+ * CircuitOverloadGame - "Pipe Dream" Logic Puzzle with Power Flow Visualization
  * 
- * Rotate circuit tiles to connect power source to terminal.
- * Professional cyberpunk-themed logic challenge.
+ * Premium Features:
+ * - Real-time power flow visualization using DFS pathfinding
+ * - Smooth tile rotation animations
+ * - Dynamic neon glow on active paths
+ * - Interactive hover effects with brightness boost
  * 
  * Difficulty: HARD | Win: +60 KP | Loss: -30 KP
  */
@@ -36,10 +39,10 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
   const [gameStatus, setGameStatus] = useState('playing');
   const [toasts, setToasts] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [activePath, setActivePath] = useState(new Set()); // 🆕 Track powered tiles
 
   const { playClick, playWin, playPowerUp, stopCountdown, stopCountdown2 } = useUiSound();
   
-  // ✅ useRef for intervalId and audio object
   const timerRef = useRef(null);
 
   // ✅ KILL SWITCH: Centralized cleanup function
@@ -96,8 +99,9 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
   // Check connection after each move
   useEffect(() => {
     if (grid.length > 0) {
-      const connected = checkConnection();
+      const { connected, path } = calculatePowerFlow();
       setIsConnected(connected);
+      setActivePath(path);
       
       if (connected && gameStatus === 'playing') {
         handleWin();
@@ -223,6 +227,37 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
     return rotatedConnections;
   };
 
+  // 🆕 DFS-BASED POWER FLOW CALCULATOR
+  const calculatePowerFlow = () => {
+    const visited = new Set();
+    const poweredTiles = new Set();
+    const stack = [[0, 0]]; // Start from source
+
+    while (stack.length > 0) {
+      const [row, col] = stack.pop();
+      const key = `${row},${col}`;
+
+      if (visited.has(key)) continue;
+      visited.add(key);
+      poweredTiles.add(key); // This tile is powered
+
+      // Check if we reached the terminal
+      if (row === GRID_SIZE - 1 && col === GRID_SIZE - 1) {
+        return { connected: true, path: poweredTiles };
+      }
+
+      // Get all physically connected neighbors
+      const neighbors = getConnectedNeighbors(row, col);
+      neighbors.forEach(([nRow, nCol]) => {
+        if (!visited.has(`${nRow},${nCol}`)) {
+          stack.push([nRow, nCol]);
+        }
+      });
+    }
+
+    return { connected: false, path: poweredTiles };
+  };
+
   const handleWin = async () => {
     // ✅ KILL SWITCH: Stop everything immediately at the start
     stopGame();
@@ -259,10 +294,13 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
 
   const renderTile = (tile, row, col) => {
     const isClickable = !tile.isSource && !tile.isTerminal && gameStatus === 'playing';
+    const tileKey = `${row},${col}`;
+    const isPowered = activePath.has(tileKey);
+    const isComplete = isConnected && isPowered;
 
     return (
       <div
-        key={`${row}-${col}`}
+        key={tileKey}
         onClick={() => isClickable && rotateTile(row, col)}
         style={{
           ...styles.tile,
@@ -272,41 +310,90 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
             : tile.isTerminal
             ? 'linear-gradient(135deg, #00d4ff, #0088cc)'
             : 'rgba(0, 0, 0, 0.5)',
-          borderColor: tile.isSource || tile.isTerminal ? '#fff' : '#ff00ff',
+          borderColor: tile.isSource || tile.isTerminal 
+            ? '#fff' 
+            : isPowered 
+            ? (isComplete ? '#00ff88' : '#00d4ff')
+            : '#ff00ff',
+          // 🆕 NEON GLOW for powered tiles
+          boxShadow: isPowered 
+            ? (isComplete 
+              ? '0 0 25px rgba(0, 255, 136, 0.8), inset 0 0 15px rgba(0, 255, 136, 0.3)' 
+              : '0 0 20px rgba(0, 212, 255, 0.6), inset 0 0 10px rgba(0, 212, 255, 0.2)')
+            : 'none',
           transform: `rotate(${tile.rotation}deg)`,
+          // 🆕 SMOOTH ROTATION TRANSITION
+          transition: 'all 0.3s ease',
+          // 🆕 COMPLETE PATH PULSE ANIMATION
+          animation: isComplete ? 'pathPulse 1.5s ease-in-out infinite' : 'none',
+        }}
+        // 🆕 HOVER BRIGHTNESS BOOST
+        onMouseEnter={(e) => {
+          if (isClickable) {
+            e.currentTarget.style.filter = 'brightness(1.3)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (isClickable) {
+            e.currentTarget.style.filter = 'brightness(1)';
+          }
         }}
       >
         {tile.isSource && <div style={styles.label}>SOURCE</div>}
         {tile.isTerminal && <div style={styles.label}>TERMINAL</div>}
         {!tile.isSource && !tile.isTerminal && (
           <svg width="100%" height="100%" viewBox="0 0 100 100">
-            {renderTilePath(tile.type)}
+            {renderTilePath(tile.type, isPowered, isComplete)}
           </svg>
         )}
       </div>
     );
   };
 
-  const renderTilePath = (type) => {
-    const color = '#ff00ff';
+  // 🆕 ENHANCED PATH RENDERING with dynamic colors
+  const renderTilePath = (type, isPowered, isComplete) => {
+    const color = isComplete 
+      ? '#00ff88' 
+      : isPowered 
+      ? '#00d4ff' 
+      : '#ff00ff';
     const strokeWidth = 8;
+    const glowFilter = isPowered ? 'url(#glow)' : 'none';
 
-    switch (type) {
-      case TILES.STRAIGHT_H:
-        return <line x1="0" y1="50" x2="100" y2="50" stroke={color} strokeWidth={strokeWidth} />;
-      case TILES.STRAIGHT_V:
-        return <line x1="50" y1="0" x2="50" y2="100" stroke={color} strokeWidth={strokeWidth} />;
-      case TILES.CURVE_TL:
-        return <path d="M 50 0 Q 50 50, 0 50" stroke={color} fill="none" strokeWidth={strokeWidth} />;
-      case TILES.CURVE_TR:
-        return <path d="M 50 0 Q 50 50, 100 50" stroke={color} fill="none" strokeWidth={strokeWidth} />;
-      case TILES.CURVE_BL:
-        return <path d="M 50 100 Q 50 50, 0 50" stroke={color} fill="none" strokeWidth={strokeWidth} />;
-      case TILES.CURVE_BR:
-        return <path d="M 50 100 Q 50 50, 100 50" stroke={color} fill="none" strokeWidth={strokeWidth} />;
-      default:
-        return null;
-    }
+    const pathElement = (() => {
+      switch (type) {
+        case TILES.STRAIGHT_H:
+          return <line x1="0" y1="50" x2="100" y2="50" stroke={color} strokeWidth={strokeWidth} filter={glowFilter} />;
+        case TILES.STRAIGHT_V:
+          return <line x1="50" y1="0" x2="50" y2="100" stroke={color} strokeWidth={strokeWidth} filter={glowFilter} />;
+        case TILES.CURVE_TL:
+          return <path d="M 50 0 Q 50 50, 0 50" stroke={color} fill="none" strokeWidth={strokeWidth} filter={glowFilter} />;
+        case TILES.CURVE_TR:
+          return <path d="M 50 0 Q 50 50, 100 50" stroke={color} fill="none" strokeWidth={strokeWidth} filter={glowFilter} />;
+        case TILES.CURVE_BL:
+          return <path d="M 50 100 Q 50 50, 0 50" stroke={color} fill="none" strokeWidth={strokeWidth} filter={glowFilter} />;
+        case TILES.CURVE_BR:
+          return <path d="M 50 100 Q 50 50, 100 50" stroke={color} fill="none" strokeWidth={strokeWidth} filter={glowFilter} />;
+        default:
+          return null;
+      }
+    })();
+
+    return (
+      <>
+        {/* SVG Filter for Glow Effect */}
+        <defs>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        {pathElement}
+      </>
+    );
   };
 
   return (
@@ -410,6 +497,18 @@ const CircuitOverloadGame = ({ onComplete, onClose }) => {
           <div>→ Source and Terminal cannot be rotated</div>
         </div>
       </div>
+
+      {/* 🆕 KEYFRAME ANIMATIONS */}
+      <style>{`
+        @keyframes pathPulse {
+          0%, 100% {
+            box-shadow: 0 0 25px rgba(0, 255, 136, 0.8), inset 0 0 15px rgba(0, 255, 136, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 35px rgba(0, 255, 136, 1), inset 0 0 20px rgba(0, 255, 136, 0.5);
+          }
+        }
+      `}</style>
     </div>
   );
 };

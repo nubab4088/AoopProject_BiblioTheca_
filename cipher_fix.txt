@@ -1,0 +1,19 @@
+Replace line 83-91 in CipherBreakerGame.jsx:
+
+  const handleWin = async () => {
+    setGameStatus('won');
+    playWin();
+
+    try {
+      // Use onComplete for proper DungeonPlatform integration
+      if (onComplete) {
+        await onComplete(KP_REWARD);
+      } else if (onWin) {
+        await onWin(KP_REWARD);
+      }
+      addToast('success', 'ACCESS GRANTED!', 'Password decrypted successfully', KP_REWARD);
+    } catch (error) {
+      console.error('Failed to award KP:', error);
+      addToast('error', 'SYNC ERROR', 'Failed to update KP');
+    }
+  };

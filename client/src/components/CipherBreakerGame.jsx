@@ -3,24 +3,26 @@ import useUiSound from '../hooks/useUiSound';
 import ToastNotification from './ToastNotification';
 
 /**
- * CipherBreakerGame - Hangman-style Password Decryption
+ * CipherBreakerGame - Cyberpunk Terminal Decryption Interface
  * 
- * A professional cyberpunk-themed word guessing game.
- * Players must decrypt security terms by guessing letters.
+ * Premium Features:
+ * - CLI-style bracket slots with blinking cursor
+ * - Hex-block letter bank with glitch effects
+ * - Typewriter animation on letter placement
+ * - System notification hints
+ * - Matrix-style access granted animation
  * 
  * Difficulty: HARD | Reward: +75 KP | Lives: 6 Integrity Blocks
  */
 
 const WORD_BANK = [
   'ENCRYPTION',
-  'MAINFRAME',
   'FIREWALL',
   'EXPLOIT',
   'HANDSHAKE',
   'PROTOCOL',
   'BACKDOOR',
   'ROOTKIT',
-  'PAYLOAD',
   'MALWARE'
 ];
 
@@ -33,47 +35,57 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
   const { playClick, playWin, playPowerUp, stopCountdown } = useUiSound();
 
   const [targetWord, setTargetWord] = useState('');
+  const [userInput, setUserInput] = useState([]);
+  const [availableLetters, setAvailableLetters] = useState([]);
   const [guessedLetters, setGuessedLetters] = useState(new Set());
   const [remainingAttempts, setRemainingAttempts] = useState(MAX_ATTEMPTS);
-  const [gameStatus, setGameStatus] = useState('playing'); // 'playing', 'won', 'lost'
+  const [gameStatus, setGameStatus] = useState('playing');
   const [toasts, setToasts] = useState([]);
-  const [showCelebration, setShowCelebration] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState(0);
 
-  // 🔧 FIX: Cleanup function to stop all audio
   useEffect(() => {
     return () => {
-      // Stop countdown audio on unmount
       stopCountdown();
     };
   }, [stopCountdown]);
 
-  // Initialize game
   useEffect(() => {
     const randomWord = WORD_BANK[Math.floor(Math.random() * WORD_BANK.length)];
     setTargetWord(randomWord);
   }, []);
 
-  // Check win/loss conditions
+  useEffect(() => {
+    if (targetWord) {
+      const letters = targetWord.split('');
+      const scrambled = [...letters].sort(() => Math.random() - 0.5);
+      setAvailableLetters(scrambled);
+      setUserInput(new Array(targetWord.length).fill(''));
+      setCursorPosition(0);
+    }
+  }, [targetWord]);
+
   useEffect(() => {
     if (!targetWord || gameStatus !== 'playing') return;
 
-    const wordLetters = new Set(targetWord.split(''));
-    const allGuessed = [...wordLetters].every(letter => guessedLetters.has(letter));
-
-    if (allGuessed) {
+    const answer = userInput.join('');
+    if (answer === targetWord && answer.length === targetWord.length) {
       handleWin();
-    } else if (remainingAttempts === 0) {
-      handleLoss();
     }
-  }, [guessedLetters, remainingAttempts, targetWord]);
+  }, [userInput]);
 
   const handleWin = async () => {
     setGameStatus('won');
-    setShowCelebration(true);
     playWin();
 
     try {
-      await onWin(KP_REWARD);
+      // 🔧 FIX: Call onComplete instead of onWin to trigger DungeonPlatform's handleGameComplete
+      if (onComplete) {
+        await onComplete(KP_REWARD);
+      } else if (onWin) {
+        // Fallback for backward compatibility
+        await onWin(KP_REWARD);
+      }
       addToast('success', 'ACCESS GRANTED!', 'Password decrypted successfully', KP_REWARD);
     } catch (error) {
       console.error('Failed to award KP:', error);
@@ -85,7 +97,6 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
     setGameStatus('lost');
     
     try {
-      // Call onComplete with penalty if provided (for DungeonPlatform integration)
       if (onComplete) {
         await onComplete(KP_PENALTY);
         addToast('error', 'SYSTEM LOCKDOWN', `Integrity compromised`, KP_PENALTY);
@@ -98,19 +109,76 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
     }
   };
 
-  const handleLetterGuess = (letter) => {
-    if (gameStatus !== 'playing' || guessedLetters.has(letter)) return;
+  const handleLetterClick = (letter, index) => {
+    if (gameStatus !== 'playing') return;
 
     playClick();
-    const newGuessed = new Set(guessedLetters);
-    newGuessed.add(letter);
-    setGuessedLetters(newGuessed);
 
-    // Check if letter is in word
-    if (!targetWord.includes(letter)) {
-      setRemainingAttempts(prev => prev - 1);
-      playPowerUp(); // Wrong guess sound
+    const emptySlotIndex = userInput.findIndex(slot => slot === '');
+    if (emptySlotIndex === -1) return;
+
+    const newInput = [...userInput];
+    newInput[emptySlotIndex] = letter;
+    setUserInput(newInput);
+    setCursorPosition(emptySlotIndex + 1);
+
+    const newAvailable = [...availableLetters];
+    newAvailable.splice(index, 1);
+    setAvailableLetters(newAvailable);
+
+    if (emptySlotIndex === userInput.length - 1) {
+      const fullAnswer = newInput.join('');
+      if (fullAnswer !== targetWord) {
+        setTimeout(() => {
+          handleWrongAttempt();
+        }, 500);
+      }
     }
+  };
+
+  const handleClearBuffer = () => {
+    if (gameStatus !== 'playing') return;
+    playClick();
+    
+    const usedLetters = userInput.filter(l => l !== '');
+    setAvailableLetters([...availableLetters, ...usedLetters].sort(() => Math.random() - 0.5));
+    setUserInput(new Array(targetWord.length).fill(''));
+    setCursorPosition(0);
+  };
+
+  const handleBackspace = () => {
+    if (gameStatus !== 'playing') return;
+    playClick();
+
+    const lastFilledIndex = userInput.map((letter, i) => letter !== '' ? i : -1)
+                                     .filter(i => i !== -1)
+                                     .pop();
+    
+    if (lastFilledIndex === undefined) return;
+
+    const removedLetter = userInput[lastFilledIndex];
+    setAvailableLetters([...availableLetters, removedLetter].sort(() => Math.random() - 0.5));
+
+    const newInput = [...userInput];
+    newInput[lastFilledIndex] = '';
+    setUserInput(newInput);
+    setCursorPosition(lastFilledIndex);
+  };
+
+  const handleWrongAttempt = () => {
+    setRemainingAttempts(prev => {
+      const newAttempts = prev - 1;
+      if (newAttempts === 0) {
+        handleLoss();
+      }
+      return newAttempts;
+    });
+    playPowerUp();
+    
+    addToast('error', 'INCORRECT', 'Access denied - Try again');
+    setTimeout(() => {
+      handleClearBuffer();
+    }, 800);
   };
 
   const addToast = (type, title, message, kpAmount = null) => {
@@ -122,16 +190,69 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
-  const renderWord = () => {
-    return targetWord.split('').map((letter, index) => (
-      <div
-        key={index}
-        style={styles.letterBox}
-        className={guessedLetters.has(letter) ? 'revealed' : ''}
-      >
-        {guessedLetters.has(letter) ? letter : '_'}
+  const renderAnswerSlots = () => {
+    return (
+      <div style={styles.answerSlots}>
+        {userInput.map((letter, index) => (
+          <div key={index} style={styles.bracketSlot}>
+            <span style={styles.bracket}>{'['}</span>
+            <span style={{
+              ...styles.slotLetter,
+              color: letter ? '#00ff88' : '#444',
+              animation: letter ? 'letterTypeIn 0.3s ease-out' : 'none'
+            }}>
+              {letter || (index === cursorPosition && gameStatus === 'playing' ? '█' : '_')}
+            </span>
+            <span style={styles.bracket}>{']'}</span>
+          </div>
+        ))}
       </div>
-    ));
+    );
+  };
+
+  const renderHexBlocks = () => {
+    return (
+      <div style={styles.hexGrid}>
+        {availableLetters.map((letter, index) => (
+          <div
+            key={`${letter}-${index}`}
+            onClick={() => handleLetterClick(letter, index)}
+            style={styles.hexBlock}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.animation = 'glitchHover 0.3s ease';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.animation = 'none';
+            }}
+          >
+            <div style={styles.hexCode}>0x{letter.charCodeAt(0).toString(16).toUpperCase()}</div>
+            <div style={styles.hexLetter}>{letter}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderHint = () => {
+    const hints = {
+      'ENCRYPTION': 'Network Security Barrier',
+      'MAINFRAME': 'Central Computing System',
+      'FIREWALL': 'Network Protection Protocol',
+      'EXPLOIT': 'Security Vulnerability',
+      'HANDSHAKE': 'Connection Authentication',
+      'PROTOCOL': 'Communication Standard',
+      'BACKDOOR': 'Unauthorized Access Point',
+      'ROOTKIT': 'System-Level Malware',
+      'PAYLOAD': 'Malicious Code Package',
+      'MALWARE': 'Malicious Software'
+    };
+
+    return showHint ? (
+      <div style={styles.systemHint}>
+        <span style={styles.hintPrompt}>&gt; SYSTEM_HINT:</span>
+        <span style={styles.hintText}>[ "{hints[targetWord] || 'Unknown Term'}" ]</span>
+      </div>
+    ) : null;
   };
 
   const renderIntegrityBlocks = () => {
@@ -158,58 +279,8 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
     });
   };
 
-  const renderKeyboard = () => {
-    return (
-      <div style={styles.keyboard}>
-        {ALPHABET.map(letter => {
-          const isGuessed = guessedLetters.has(letter);
-          const isCorrect = isGuessed && targetWord.includes(letter);
-          const isWrong = isGuessed && !targetWord.includes(letter);
-
-          return (
-            <button
-              key={letter}
-              onClick={() => handleLetterGuess(letter)}
-              disabled={isGuessed || gameStatus !== 'playing'}
-              style={{
-                ...styles.keyButton,
-                background: isCorrect
-                  ? 'rgba(0, 255, 136, 0.3)'
-                  : isWrong
-                  ? 'rgba(255, 68, 68, 0.3)'
-                  : 'rgba(255, 255, 255, 0.05)',
-                borderColor: isCorrect
-                  ? '#00ff88'
-                  : isWrong
-                  ? '#ff4444'
-                  : 'rgba(255, 255, 255, 0.2)',
-                cursor: isGuessed || gameStatus !== 'playing' ? 'not-allowed' : 'pointer',
-                opacity: isGuessed ? 0.5 : 1
-              }}
-              onMouseEnter={(e) => {
-                if (!isGuessed && gameStatus === 'playing') {
-                  e.target.style.borderColor = '#00d4ff';
-                  e.target.style.boxShadow = '0 0 15px rgba(0, 212, 255, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isGuessed && gameStatus === 'playing') {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                  e.target.style.boxShadow = 'none';
-                }
-              }}
-            >
-              {letter}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
   return (
     <div style={styles.overlay}>
-      {/* Toast Container */}
       <div className="toast-container">
         {toasts.map(toast => (
           <ToastNotification
@@ -224,7 +295,6 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
       </div>
 
       <div style={styles.container}>
-        {/* Header */}
         <div style={styles.header}>
           <div style={styles.title}>
             <span style={{ fontSize: '2rem' }}>🔐</span>
@@ -235,7 +305,6 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
           </button>
         </div>
 
-        {/* Status Bar */}
         <div style={styles.statusBar}>
           <div style={styles.statusItem}>
             <span style={{ color: '#888', fontSize: '0.8rem' }}>DIFFICULTY</span>
@@ -257,117 +326,141 @@ const CipherBreakerGame = ({ onClose, onWin, onComplete }) => {
           </div>
         </div>
 
-        {/* Main Game Area */}
-        <div style={styles.gameArea}>
-          {/* Integrity Blocks */}
+        <div style={styles.terminalArea}>
           <div style={styles.integrityContainer}>
-            <div style={styles.sectionLabel}>SYSTEM INTEGRITY</div>
+            <div style={styles.terminalLabel}>
+              <span style={styles.labelPrompt}>&gt;&gt;</span> SYSTEM INTEGRITY
+            </div>
             <div style={styles.blocksRow}>
               {renderIntegrityBlocks()}
             </div>
           </div>
 
-          {/* Encrypted Word Display */}
-          <div style={styles.wordContainer}>
-            <div style={styles.sectionLabel}>ENCRYPTED PASSWORD</div>
-            <div style={styles.wordDisplay}>
-              {targetWord && renderWord()}
+          <div style={styles.inputContainer}>
+            <div style={styles.terminalLabel}>
+              <span style={styles.labelPrompt}>&gt;&gt;</span> DECRYPTION_BUFFER
             </div>
-            <div style={{ 
-              textAlign: 'center', 
-              color: '#00d4ff', 
-              fontSize: '0.9rem', 
-              marginTop: '1rem',
-              letterSpacing: '2px'
-            }}>
-              {targetWord.length} CHARACTERS
+            {renderAnswerSlots()}
+            <div style={styles.inputMeta}>
+              <span>LENGTH: {targetWord.length} CHARS</span>
+              <span>|</span>
+              <span>FILLED: {userInput.filter(l => l !== '').length}/{targetWord.length}</span>
             </div>
           </div>
 
-          {/* Virtual Keyboard */}
-          <div style={styles.keyboardContainer}>
-            <div style={styles.sectionLabel}>DECRYPTION INTERFACE</div>
-            {renderKeyboard()}
+          <div style={styles.controlPanel}>
+            <button onClick={handleClearBuffer} style={styles.controlBtn} disabled={gameStatus !== 'playing'}>
+              <i className="fas fa-redo"></i> CLEAR BUFFER
+            </button>
+            <button onClick={handleBackspace} style={styles.controlBtn} disabled={gameStatus !== 'playing'}>
+              <i className="fas fa-backspace"></i> BACKSPACE
+            </button>
+            <button 
+              onClick={() => setShowHint(!showHint)} 
+              style={{...styles.controlBtn, background: 'rgba(255, 215, 0, 0.2)', borderColor: '#ffd700'}}
+              disabled={gameStatus !== 'playing'}
+            >
+              <i className="fas fa-lightbulb"></i> {showHint ? 'HIDE' : 'SHOW'} HINT
+            </button>
           </div>
 
-          {/* Game Over Overlay */}
-          {gameStatus !== 'playing' && (
-            <div style={styles.gameOverOverlay}>
-              <div style={styles.gameOverContent}>
-                {gameStatus === 'won' ? (
-                  <>
-                    <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>✓</div>
-                    <div style={styles.gameOverTitle}>ACCESS GRANTED</div>
-                    <div style={styles.gameOverMessage}>Password successfully decrypted</div>
-                    <div style={styles.kpReward}>+{KP_REWARD} KP</div>
-                    <div style={{ 
-                      marginTop: '1rem', 
-                      fontSize: '1.2rem', 
-                      color: '#00ff88',
-                      letterSpacing: '3px'
-                    }}>
-                      {targetWord}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>✕</div>
-                    <div style={{...styles.gameOverTitle, color: '#ff4444'}}>SYSTEM LOCKDOWN</div>
-                    <div style={styles.gameOverMessage}>Decryption failed - Integrity compromised</div>
-                    <div style={{ 
-                      marginTop: '1rem', 
-                      fontSize: '1.2rem', 
-                      color: '#00ff88',
-                      letterSpacing: '3px'
-                    }}>
-                      ANSWER: {targetWord}
-                    </div>
-                  </>
-                )}
-                <button 
-                  onClick={onClose}
-                  style={styles.exitButton}
-                >
-                  RETURN TO PLATFORM
+          {renderHint()}
+
+          <div style={styles.dataContainer}>
+            <div style={styles.terminalLabel}>
+              <span style={styles.labelPrompt}>&gt;&gt;</span> AVAILABLE_DATA_BLOCKS
+            </div>
+            {renderHexBlocks()}
+          </div>
+
+          {gameStatus === 'won' && (
+            <div style={styles.terminalOverlay}>
+              <div style={styles.terminalOverlayContent}>
+                <div style={styles.accessGranted}>
+                  <div style={styles.matrixEffect}>█ █ █ █ █</div>
+                  <div style={styles.accessText}>ACCESS GRANTED</div>
+                  <div style={styles.matrixEffect}>█ █ █ █ █</div>
+                </div>
+                <div style={styles.decryptedWord}>
+                  <span style={styles.labelPrompt}>&gt;</span> {targetWord}
+                </div>
+                <div style={styles.kpRewardTerminal}>+{KP_REWARD} KNOWLEDGE_POINTS</div>
+                <button onClick={onClose} style={styles.exitButtonTerminal}>
+                  [ RETURN_TO_PLATFORM ]
+                </button>
+              </div>
+            </div>
+          )}
+
+          {gameStatus === 'lost' && (
+            <div style={styles.terminalOverlay}>
+              <div style={styles.terminalOverlayContent}>
+                <div style={{...styles.accessGranted, color: '#ff4444'}}>
+                  <div style={styles.matrixEffect}>✕ ✕ ✕ ✕ ✕</div>
+                  <div style={styles.accessText}>SYSTEM LOCKDOWN</div>
+                  <div style={styles.matrixEffect}>✕ ✕ ✕ ✕ ✕</div>
+                </div>
+                <div style={styles.decryptedWord}>
+                  <span style={styles.labelPrompt}>&gt;</span> ANSWER: {targetWord}
+                </div>
+                <div style={{...styles.kpRewardTerminal, color: '#ff4444'}}>INTEGRITY_COMPROMISED</div>
+                <button onClick={onClose} style={styles.exitButtonTerminal}>
+                  [ RETURN_TO_PLATFORM ]
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Instructions */}
-        <div style={styles.instructions}>
-          <div style={{ color: '#00d4ff', fontWeight: 'bold', marginBottom: '0.5rem' }}>PROTOCOL:</div>
-          <div>→ Decrypt the password by guessing letters</div>
-          <div>→ Each wrong guess reduces system integrity</div>
-          <div>→ Decrypt the full password before integrity reaches zero</div>
+        <div style={styles.terminalInstructions}>
+          <div style={styles.instructionLine}>
+            <span style={styles.labelPrompt}>&gt;</span> PROTOCOL: Click hex blocks to fill decryption buffer
+          </div>
+          <div style={styles.instructionLine}>
+            <span style={styles.labelPrompt}>&gt;</span> WARNING: Wrong answers reduce system integrity
+          </div>
+          <div style={styles.instructionLine}>
+            <span style={styles.labelPrompt}>&gt;</span> OBJECTIVE: Decrypt full password before lockdown
+          </div>
         </div>
       </div>
 
-      {/* Inject Animations */}
       <style>{`
-        .revealed {
-          animation: letterReveal 0.4s ease-out;
-          color: #00ff88 !important;
-          text-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+        @keyframes letterTypeIn {
+          0% {
+            transform: scale(0) translateY(-20px);
+            opacity: 0;
+          }
+          60% {
+            transform: scale(1.3) translateY(0);
+          }
+          100% {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes glitchHover {
+          0%, 100% { transform: translate(0); }
+          25% { transform: translate(-2px, 2px); opacity: 0.8; }
+          50% { transform: translate(2px, -2px); opacity: 0.6; }
+          75% { transform: translate(-2px, -2px); opacity: 0.9; }
+        }
+
+        @keyframes cursorBlink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+
+        @keyframes matrixRain {
+          0% { transform: translateY(-100%); opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { transform: translateY(100%); opacity: 0; }
         }
 
         .broken {
           animation: blockBreak 0.5s ease-out;
-        }
-
-        @keyframes letterReveal {
-          0% {
-            transform: scale(0) rotateY(180deg);
-            opacity: 0;
-          }
-          60% {
-            transform: scale(1.2) rotateY(0deg);
-          }
-          100% {
-            transform: scale(1) rotateY(0deg);
-            opacity: 1;
-          }
         }
 
         @keyframes blockBreak {
@@ -387,7 +480,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.95)',
+    background: 'rgba(0, 0, 0, 0.98)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -396,15 +489,15 @@ const styles = {
     fontFamily: "'Courier New', monospace",
   },
   container: {
-    maxWidth: '1000px',
+    maxWidth: '1100px',
     width: '100%',
     maxHeight: '90vh',
     overflowY: 'auto',
-    background: 'linear-gradient(135deg, rgba(10, 10, 30, 0.95), rgba(20, 20, 40, 0.95))',
-    border: '2px solid rgba(0, 212, 255, 0.3)',
-    borderRadius: '16px',
+    background: 'linear-gradient(135deg, rgba(5, 5, 15, 0.98), rgba(10, 10, 20, 0.98))',
+    border: '2px solid rgba(0, 255, 65, 0.3)',
+    borderRadius: '8px',
     padding: '2rem',
-    boxShadow: '0 0 40px rgba(0, 212, 255, 0.3)',
+    boxShadow: '0 0 40px rgba(0, 255, 65, 0.2)',
   },
   header: {
     display: 'flex',
@@ -412,13 +505,13 @@ const styles = {
     alignItems: 'center',
     marginBottom: '2rem',
     paddingBottom: '1rem',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    borderBottom: '1px solid rgba(0, 255, 65, 0.2)',
   },
   title: {
     fontSize: '1.8rem',
     fontWeight: 'bold',
-    color: '#00d4ff',
-    textShadow: '0 0 20px rgba(0, 212, 255, 0.6)',
+    color: '#00ff41',
+    textShadow: '0 0 20px rgba(0, 255, 65, 0.6)',
     letterSpacing: '2px',
     display: 'flex',
     alignItems: 'center',
@@ -429,7 +522,7 @@ const styles = {
     border: '2px solid #ff4444',
     color: '#ff4444',
     padding: '0.5rem 1rem',
-    borderRadius: '8px',
+    borderRadius: '4px',
     cursor: 'pointer',
     fontFamily: "'Courier New', monospace",
     fontSize: '0.9rem',
@@ -448,25 +541,224 @@ const styles = {
   statusItem: {
     background: 'rgba(0, 0, 0, 0.4)',
     padding: '1rem',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '4px',
+    border: '1px solid rgba(0, 255, 65, 0.2)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '0.5rem',
   },
-  gameArea: {
+  terminalArea: {
     position: 'relative',
+    minHeight: '400px',
+  },
+  terminalLabel: {
+    color: '#00ff41',
+    fontSize: '0.75rem',
+    letterSpacing: '1px',
+    marginBottom: '1rem',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  labelPrompt: {
+    color: '#00ff41',
+    fontWeight: 'bold',
+    fontSize: '1rem',
+  },
+  inputContainer: {
+    marginBottom: '2rem',
+    background: 'rgba(0, 0, 0, 0.4)',
+    padding: '1.5rem',
+    borderRadius: '8px',
+    border: '1px solid rgba(0, 255, 65, 0.2)',
+  },
+  answerSlots: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    marginBottom: '1rem',
+  },
+  bracketSlot: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.2rem',
+  },
+  bracket: {
+    color: '#00ff41',
+    fontSize: '2rem',
+    fontWeight: 'bold',
+  },
+  slotLetter: {
+    width: '2rem',
+    textAlign: 'center',
+    fontSize: '2rem',
+    fontWeight: 'bold',
+    fontFamily: "'Courier New', monospace",
+    textShadow: '0 0 10px currentColor',
+  },
+  inputMeta: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '1rem',
+    color: '#666',
+    fontSize: '0.8rem',
+    letterSpacing: '1px',
+  },
+  controlPanel: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '1rem',
+    marginBottom: '2rem',
+  },
+  controlBtn: {
+    background: 'rgba(0, 255, 65, 0.1)',
+    border: '2px solid rgba(0, 255, 65, 0.4)',
+    color: '#00ff41',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontFamily: "'Courier New', monospace",
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+  },
+  systemHint: {
+    background: 'rgba(255, 215, 0, 0.1)',
+    border: '1px solid rgba(255, 215, 0, 0.4)',
+    padding: '1rem',
+    borderRadius: '4px',
+    marginBottom: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    animation: 'fadeIn 0.3s ease',
+  },
+  hintPrompt: {
+    color: '#ffd700',
+    fontWeight: 'bold',
+    fontSize: '0.9rem',
+  },
+  hintText: {
+    color: '#ffed4e',
+    fontSize: '1rem',
+    letterSpacing: '1px',
+  },
+  dataContainer: {
+    marginBottom: '2rem',
+  },
+  hexGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+    gap: '1rem',
+    padding: '1rem',
+    background: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: '8px',
+    border: '1px dashed rgba(0, 255, 65, 0.2)',
+  },
+  hexBlock: {
+    background: 'linear-gradient(135deg, rgba(0, 255, 65, 0.15), rgba(0, 200, 50, 0.1))',
+    border: '2px solid rgba(0, 255, 65, 0.3)',
+    borderRadius: '6px',
+    padding: '1rem',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+  },
+  hexCode: {
+    color: '#666',
+    fontSize: '0.7rem',
+    letterSpacing: '1px',
+  },
+  hexLetter: {
+    color: '#00ff41',
+    fontSize: '1.8rem',
+    fontWeight: 'bold',
+    textShadow: '0 0 10px rgba(0, 255, 65, 0.6)',
+  },
+  terminalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.95)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    animation: 'fadeIn 0.5s ease',
+  },
+  terminalOverlayContent: {
+    textAlign: 'center',
+  },
+  accessGranted: {
+    color: '#00ff41',
+    marginBottom: '2rem',
+  },
+  matrixEffect: {
+    fontSize: '2rem',
+    letterSpacing: '1rem',
+    opacity: 0.6,
+    animation: 'matrixRain 2s ease-in-out infinite',
+  },
+  accessText: {
+    fontSize: '3.5rem',
+    fontWeight: 'bold',
+    textShadow: '0 0 30px currentColor',
+    letterSpacing: '0.5rem',
+    margin: '1rem 0',
+  },
+  decryptedWord: {
+    fontSize: '2rem',
+    color: '#00ff41',
+    marginBottom: '2rem',
+    letterSpacing: '0.5rem',
+  },
+  kpRewardTerminal: {
+    fontSize: '1.5rem',
+    color: '#ffd700',
+    marginBottom: '2rem',
+    letterSpacing: '0.2rem',
+  },
+  exitButtonTerminal: {
+    marginTop: '2rem',
+    padding: '1rem 2rem',
+    background: 'rgba(0, 255, 65, 0.2)',
+    border: '2px solid #00ff41',
+    borderRadius: '4px',
+    color: '#00ff41',
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    letterSpacing: '0.2rem',
+    fontFamily: "'Courier New', monospace",
+    transition: 'all 0.3s ease',
+  },
+  terminalInstructions: {
+    background: 'rgba(0, 255, 65, 0.05)',
+    border: '1px solid rgba(0, 255, 65, 0.2)',
+    borderRadius: '4px',
+    padding: '1rem',
+  },
+  instructionLine: {
+    color: '#00aa41',
+    fontSize: '0.85rem',
+    marginBottom: '0.5rem',
+    letterSpacing: '1px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
   },
   integrityContainer: {
     marginBottom: '2rem',
-  },
-  sectionLabel: {
-    color: '#888',
-    fontSize: '0.75rem',
-    letterSpacing: '2px',
-    marginBottom: '1rem',
-    textTransform: 'uppercase',
   },
   blocksRow: {
     display: 'flex',
@@ -484,109 +776,6 @@ const styles = {
     fontWeight: 'bold',
     transition: 'all 0.3s ease',
     border: '2px solid rgba(255, 255, 255, 0.2)',
-  },
-  wordContainer: {
-    marginBottom: '2rem',
-  },
-  wordDisplay: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '1rem',
-    padding: '2rem',
-    background: 'rgba(0, 212, 255, 0.05)',
-    borderRadius: '12px',
-    border: '2px dashed rgba(0, 212, 255, 0.3)',
-  },
-  letterBox: {
-    width: '50px',
-    height: '60px',
-    background: 'rgba(0, 0, 0, 0.5)',
-    border: '2px solid rgba(0, 212, 255, 0.4)',
-    borderRadius: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '2rem',
-    fontWeight: 'bold',
-    color: '#00d4ff',
-    transition: 'all 0.3s ease',
-  },
-  keyboardContainer: {
-    marginBottom: '2rem',
-  },
-  keyboard: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(13, 1fr)',
-    gap: '0.5rem',
-  },
-  keyButton: {
-    aspectRatio: '1',
-    border: '2px solid',
-    borderRadius: '8px',
-    fontWeight: 'bold',
-    fontSize: '1rem',
-    color: '#fff',
-    fontFamily: "'Courier New', monospace",
-    transition: 'all 0.2s ease',
-  },
-  gameOverOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'rgba(0, 0, 0, 0.95)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '12px',
-    animation: 'fadeIn 0.5s ease-out',
-  },
-  gameOverContent: {
-    textAlign: 'center',
-    color: '#fff',
-  },
-  gameOverTitle: {
-    fontSize: '3rem',
-    fontWeight: 'bold',
-    color: '#00ff88',
-    textShadow: '0 0 30px rgba(0, 255, 136, 0.8)',
-    marginBottom: '1rem',
-    letterSpacing: '4px',
-  },
-  gameOverMessage: {
-    fontSize: '1.2rem',
-    color: '#aaa',
-    marginBottom: '2rem',
-  },
-  kpReward: {
-    fontSize: '3rem',
-    fontWeight: 'bold',
-    color: '#ffd700',
-    textShadow: '0 0 30px rgba(255, 215, 0, 0.8)',
-    marginBottom: '1rem',
-  },
-  exitButton: {
-    marginTop: '2rem',
-    padding: '1rem 2rem',
-    background: 'linear-gradient(135deg, #00d4ff, #0088cc)',
-    border: 'none',
-    borderRadius: '8px',
-    color: '#000',
-    fontSize: '1rem',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    letterSpacing: '2px',
-    transition: 'all 0.3s ease',
-  },
-  instructions: {
-    background: 'rgba(0, 212, 255, 0.05)',
-    border: '1px solid rgba(0, 212, 255, 0.3)',
-    borderRadius: '8px',
-    padding: '1rem',
-    fontSize: '0.9rem',
-    color: '#aaa',
-    lineHeight: '1.8',
   },
 };
 
