@@ -121,8 +121,9 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
                     onClick={() => handleBookClickWithEffects(book)}
                     onMouseEnter={playHover}
                     style={displayCorrupted ? {
-                      border: '2px solid rgba(255, 0, 110, 0.5)',
-                      boxShadow: '0 0 20px rgba(255, 0, 110, 0.3)'
+                      border: '2px solid rgba(56, 189, 248, 0.6)',
+                      boxShadow: '0 0 30px rgba(56, 189, 248, 0.4)',
+                      background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(56, 189, 248, 0.1))'
                     } : (isUnlocked && isCorrupted) ? {
                       border: '2px solid rgba(0, 255, 65, 0.5)',
                       boxShadow: '0 0 20px rgba(0, 255, 65, 0.3)'
@@ -138,8 +139,18 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
                         }}
                       />
                       <span className="badge" style={{
-                        background: (isUnlocked && isCorrupted) ? '#00ff41' : displayCorrupted ? '#ff006e' : '#924EFF',
-                        color: (isUnlocked && isCorrupted) ? '#000' : '#fff'
+                        background: (isUnlocked && isCorrupted) 
+                          ? 'linear-gradient(135deg, #00ff41, #00cc33)' 
+                          : displayCorrupted 
+                          ? 'linear-gradient(135deg, #38bdf8, #7c3aed)' 
+                          : '#924EFF',
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        boxShadow: displayCorrupted 
+                          ? '0 0 15px rgba(56, 189, 248, 0.6)' 
+                          : (isUnlocked && isCorrupted) 
+                          ? '0 0 15px rgba(0, 255, 65, 0.6)' 
+                          : 'none'
                       }}>
                         {isUnlocked && isCorrupted ? '✅ RESTORED' : displayCorrupted ? '🔒 CORRUPTED' : book.category}
                       </span>
@@ -154,7 +165,8 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
                           border: 'none', 
                           cursor: 'pointer', 
                           padding: 0,
-                          color: isUnlocked && isCorrupted ? '#00ff41' : displayCorrupted ? '#ff006e' : '#00d4ff'
+                          color: isUnlocked && isCorrupted ? '#00ff41' : displayCorrupted ? '#38bdf8' : '#00d4ff',
+                          fontWeight: displayCorrupted ? 'bold' : 'normal'
                         }}
                       >
                         {isUnlocked && isCorrupted ? 'READ' : displayCorrupted ? 'PURIFY' : 'EXPLORE'} <i className="fas fa-arrow-right"></i>

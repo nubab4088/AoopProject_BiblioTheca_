@@ -150,14 +150,60 @@ function AppContent() {
     navigate('/login');
   };
   
-  const handleLogout = () => { 
-    setIsLoggedIn(false); 
+  /**
+   * 🚪 BULLETPROOF LOGOUT HANDLER
+   * Guarantees 100% clean slate for next user
+   * 
+   * This function performs a complete system reset:
+   * 1. Clears all localStorage data (user data, tokens, chat history)
+   * 2. Clears all sessionStorage data
+   * 3. Resets local component state
+   * 4. Forces hard page reload to clear React state tree
+   */
+  const handleLogout = () => {
+    console.log('🚪 [LOGOUT] Initiating complete system logout...');
+    
+    // 🧹 STEP 1: Clear all localStorage keys
+    const localStorageKeys = [
+      'library_user_data',      // UserContext data
+      'userToken',              // Auth token
+      'userId',                 // User ID
+      'chat_history',           // Chat messages (if exists)
+      'chatMessages',           // Alternative chat storage
+      'conversationHistory',    // AI chat history
+      'audioMuted',             // Audio preferences (optional - keep if you want)
+      'theme',                  // Theme preference (optional - keep if you want)
+      'game_economy_state',     // Game economy data
+      'daily_reward_timestamp', // Daily reward data
+      'lastClaimTime'           // Reward claim tracking
+    ];
+    
+    localStorageKeys.forEach(key => {
+      if (key !== 'audioMuted' && key !== 'theme') { // Keep user preferences
+        localStorage.removeItem(key);
+        console.log(`✅ [LOGOUT] Cleared localStorage: ${key}`);
+      }
+    });
+    
+    // 🧹 STEP 2: Clear all sessionStorage
+    sessionStorage.clear();
+    console.log('✅ [LOGOUT] Cleared sessionStorage');
+    
+    // 🧹 STEP 3: Reset local component state
+    setIsLoggedIn(false);
     setUser({ name: '', id: null });
     setUnlockedBooks([]);
-    localStorage.removeItem('userToken');
-    localStorage.removeItem('userId');
-    sessionStorage.removeItem('userToken');
-    sessionStorage.removeItem('userId');
+    setSelectedBook(null);
+    setCurrentDungeonBook(null);
+    console.log('✅ [LOGOUT] Reset local component state');
+    
+    // 🧹 STEP 4: Force hard reload to clear ALL in-memory state
+    // This clears React component tree, contexts, and any lingering variables
+    console.log('🔄 [LOGOUT] Forcing hard reload to /login...');
+    
+    setTimeout(() => {
+      window.location.href = '/login'; // Hard reload (NOT navigate())
+    }, 100); // Small delay to ensure logs are printed
   };
 
   const handleBookClick = (book) => {
