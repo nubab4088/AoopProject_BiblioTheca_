@@ -5,7 +5,7 @@
 **Version:** 2.0.0  
 **Last Updated:** January 23, 2026  
 **Authors:** Nusrat Bably  
-**Tech Stack:** React 18 + Vite + React Router, Spring Boot 3.4.1, H2 Database, Google Gemini AI
+**Tech Stack:** React 18 + Vite + React Router, Spring Boot 3.4.1, H2 Database, Google Gemini AI ChatBot
 
 ---
 
