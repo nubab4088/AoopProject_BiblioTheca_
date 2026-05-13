@@ -1,4 +1,4 @@
-# 📚 BiblioTheca - Interactive Library Management System
+# 📚 BiblioTheca: An Interactive AI-Powered Gamified Library Management System
 
 ## Complete Project Documentation
 
