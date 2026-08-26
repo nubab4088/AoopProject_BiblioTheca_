@@ -1,12 +1,15 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer 
 } from 'recharts';
-import { Trophy, Clock, Zap, BookOpen, Shield, Download, Gift } from 'lucide-react';
+import { Trophy, Clock, Zap, BookOpen, Shield, Download, Gift, ArrowLeft } from 'lucide-react';
 import useDailyReward from '../hooks/useDailyReward';
 import useUiSound from '../hooks/useUiSound';
 
 const Profile = ({ user, unlockedBooks }) => {
+  const navigate = useNavigate();
+
   // 🎁 DAILY SUPPLY DROP HOOK
   const { 
     isReady, 
@@ -26,10 +29,9 @@ const Profile = ({ user, unlockedBooks }) => {
     const success = await collectReward();
     
     if (success) {
-      playWin(); // 🎉 Play win sound on successful claim
-      // Optionally refresh the page or show a toast notification
+      playWin(); 
       setTimeout(() => {
-        window.location.reload(); // Refresh to update KP display
+        window.location.reload(); 
       }, 1500);
     }
   };
@@ -54,13 +56,51 @@ const Profile = ({ user, unlockedBooks }) => {
 
   return (
     <div className="page-container" style={{ 
-      paddingTop: '80px', 
       color: 'white', 
       maxWidth: '1200px', 
       margin: '0 auto', 
-      paddingBottom: '50px',
-      padding: '80px 20px 50px'
+      /* 🔥 FIXED: Reduced top padding from 80px to 20px */
+      padding: '20px 20px 50px' 
     }}>
+
+      {/* Go Back Button */}
+      <button 
+        onClick={() => {
+          playClick();
+          navigate(-1);
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'transparent',
+          border: 'none',
+          color: '#aaa',
+          fontSize: '1rem',
+          fontWeight: '600',
+          cursor: 'pointer',
+          marginBottom: '20px',
+          /* 🔥 Align visually with the edge of the card */
+          marginLeft: '-10px', 
+          padding: '8px 12px',
+          borderRadius: '8px',
+          transition: 'all 0.3s ease',
+          width: 'fit-content'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = '#fff';
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          e.currentTarget.style.transform = 'translateX(-5px)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = '#aaa';
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.transform = 'translateX(0)';
+        }}
+      >
+        <ArrowLeft size={20} />
+        Go Back
+      </button>
 
       {/* --- ID CARD HEADER --- */}
       <div style={{ 

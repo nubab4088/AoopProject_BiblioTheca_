@@ -1,26 +1,27 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
 import useUiSound from '../hooks/useUiSound';
+import { useNavigate } from 'react-router-dom';
 
 const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState('title');
+  const [showAuthAlert, setShowAuthAlert] = useState(false);
+  const navigate = useNavigate();
   
-  // 🔥 CONNECT TO USER CONTEXT FOR REAL-TIME UNLOCK STATUS
+  // 🔥 CONNECT TO USER CONTEXT
   const { user } = useUser();
   const unlockedBooks = user.unlockedBooks || [];
   
   // 🎵 UI SOUNDS HOOK
   const { playClick, playHover } = useUiSound();
 
-  // 📚 Helper function to check if a book is unlocked
   const isBookUnlocked = (bookId) => {
     return unlockedBooks.some(id => 
       String(id) === String(bookId) || parseInt(id) === parseInt(bookId)
     );
   };
 
-  // Filter books based on search
   const filteredBooks = searchQuery.trim() 
     ? books.filter(book => {
         const query = searchQuery.toLowerCase();
@@ -31,13 +32,15 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
       })
     : books;
 
-  /**
-   * Handle book click with sound effects and screen shake for corrupted books
-   */
   const handleBookClickWithEffects = (book) => {
     playClick();
     
-    // 💥 SCREEN SHAKE for corrupted books
+    // 🔥 SECURITY CHECK FIX: Check the exact guest name
+    if (user.name === 'Guest Agent' && (book.isCorrupted || book.corrupted)) {
+      setShowAuthAlert(true);
+      return; 
+    }
+    
     if (book.isCorrupted || book.corrupted) {
       const appContainer = document.querySelector('.app-container');
       if (appContainer) {
@@ -53,7 +56,6 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
 
   return (
     <>
-      {/* Search Section */}
       {showSearch && (
         <section className="search-section">
           <div className="container">
@@ -88,7 +90,6 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
         </section>
       )}
 
-      {/* Books Grid */}
       <section className="books-section" id="books">
         <div className="container">
           <h2>FIND BOOKS</h2>
@@ -107,11 +108,8 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
           <div className="books-grid" id="booksGrid">
             {filteredBooks.length > 0 ? (
               filteredBooks.map((book) => {
-                // 🔍 CRITICAL: Check unlock status using BOTH formats (string & number)
                 const isUnlocked = isBookUnlocked(book.id);
                 const isCorrupted = book.isCorrupted || book.corrupted;
-                
-                // If unlocked, override corrupted status
                 const displayCorrupted = isCorrupted && !isUnlocked;
                 
                 return (
@@ -191,6 +189,144 @@ const BookGrid = ({ books, handleBookClick, showSearch = true }) => {
           </div>
         </div>
       </section>
+
+      {/* 🔥 THEMED ACCESS DENIED MODAL */}
+      {showAuthAlert && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(10, 11, 26, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          {/* Internal stylesheet for the floating animation */}
+          <style>
+            {`
+              @keyframes floatGhost {
+                0% { transform: translateY(0px); }
+                50% { transform: translateY(-10px); }
+                100% { transform: translateY(0px); }
+              }
+            `}
+          </style>
+
+          <div style={{
+            background: '#151729',
+            border: '1px solid #7c3aed',
+            borderRadius: '16px',
+            padding: '2.5rem 2rem',
+            maxWidth: '450px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 0 30px rgba(124, 58, 237, 0.25)',
+            position: 'relative',
+            animation: 'fadeIn 0.3s ease-out'
+          }}>
+            {/* Close Button */}
+            <button 
+              onClick={() => setShowAuthAlert(false)}
+              onMouseEnter={playHover}
+              style={{
+                position: 'absolute', top: '15px', right: '15px',
+                background: 'rgba(255, 255, 255, 0.1)', border: 'none', color: '#a0a5cc',
+                width: '30px', height: '30px', borderRadius: '50%',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+
+            {/* Glowing Floating Ghost Icon */}
+            <div style={{ 
+              fontSize: '4.5rem', 
+              color: '#a855f7', 
+              textShadow: '0 0 25px rgba(168, 85, 247, 0.7)', 
+              marginBottom: '1rem',
+              animation: 'floatGhost 3s ease-in-out infinite'
+            }}>
+              <i className="fas fa-ghost"></i>
+            </div>
+            
+            <h2 style={{ color: '#fff', marginBottom: '1.5rem', fontSize: '1.4rem', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              ACCESS DENIED 🚨
+            </h2>
+            
+            {/* Inner Dark Box */}
+            <div style={{
+              background: '#1e213a',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              marginBottom: '1.5rem'
+            }}>
+              <p style={{ color: '#a0a5cc', lineHeight: '1.6', fontSize: '0.95rem', margin: 0 }}>
+                Agent clearance is required to initiate purification sequences. Please sign in to access full library facilities and save your progress.
+              </p>
+            </div>
+            
+            {/* Warning Strip */}
+            <div style={{
+              background: 'rgba(255, 68, 68, 0.1)',
+              border: '1px solid rgba(255, 68, 68, 0.2)',
+              borderRadius: '8px',
+              padding: '1rem',
+              marginBottom: '1.5rem',
+              color: '#ff4444',
+              fontSize: '0.9rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+            }}>
+              <i className="fas fa-exclamation-triangle"></i>
+              Guest Profile Detected
+            </div>
+            
+            {/* 🔥 SIDE-BY-SIDE BUTTONS MATCHING YOUR UI */}
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '15px' }}>
+              <button
+                onClick={() => setShowAuthAlert(false)}
+                onMouseEnter={playHover}
+                style={{
+                  flex: 1,
+                  padding: '0.9rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.95rem',
+                  transition: 'background 0.2s',
+                  display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'
+                }}
+              >
+                <i className="fas fa-shield-alt"></i> ABORT
+              </button>
+
+              <button
+                onClick={() => navigate('/login')}
+                onMouseEnter={playHover}
+                style={{
+                  flex: 1,
+                  padding: '0.9rem',
+                  background: '#8b5cf6',
+                  border: 'none',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.95rem',
+                  transition: 'background 0.2s',
+                  textTransform: 'uppercase',
+                  display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'
+                }}
+              >
+                SIGN IN <i className="fas fa-sign-in-alt"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

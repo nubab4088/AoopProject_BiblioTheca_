@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useUser } from '../context/UserContext'; 
 import '../styles/Auth.css';
 
 function Login() {
   const navigate = useNavigate();
+  const { updateUser } = useUser(); 
+  
   const [formData, setFormData] = useState({
-    email: '',
+    username: '', 
     password: '',
     rememberMe: false
   });
@@ -27,11 +30,9 @@ function Login() {
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username or Name is required';
+    } 
     
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -46,17 +47,19 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
     
     setIsLoading(true);
-    setErrors({}); // Clear previous errors
+    setErrors({}); 
     
     try {
       const response = await fetch('http://localhost:8080/api/players/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: formData.email, // Backend accepts email or username
+          username: formData.username,
           password: formData.password
         })
       });
@@ -64,27 +67,35 @@ function Login() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Invalid email or password');
+        throw new Error(data.error || 'Invalid username or password');
       }
 
-      // Store user data with all required fields
-      const userData = {
+      // 1. Update the React Context for your Profile Badge
+      updateUser({
+        name: data.username,
+        kp: data.knowledgePoints || 150,
+        unlockedBooks: data.unlockedBooks || []
+      });
+
+      // 2. Format the token EXACTLY as your router expects
+      const tokenData = {
         id: data.id,
         username: data.username,
-        email: data.email,
+        email: data.email || formData.username,
         knowledgePoints: data.knowledgePoints || 150,
         unlockedBooks: data.unlockedBooks || []
       };
 
+      // 3. Save the token so your app doesn't kick you back to login
       if (formData.rememberMe) {
-        localStorage.setItem('userToken', JSON.stringify(userData));
+        localStorage.setItem('userToken', JSON.stringify(tokenData));
         localStorage.setItem('userId', data.id);
       } else {
-        sessionStorage.setItem('userToken', JSON.stringify(userData));
+        sessionStorage.setItem('userToken', JSON.stringify(tokenData));
         sessionStorage.setItem('userId', data.id);
       }
       
-      console.log('Login successful:', userData);
+      console.log('Login successful, Context Updated & Token Saved!');
       navigate('/', { replace: true });
     } catch (error) {
       console.error('Login error:', error);
@@ -121,26 +132,26 @@ function Login() {
 
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="form-group">
-                <label htmlFor="email" className="form-label">
-                  Email Address
+                <label htmlFor="username" className="form-label">
+                  Username (Full Name)
                 </label>
                 <div className="input-with-icon">
-                  <i className="fas fa-envelope input-icon"></i>
+                  <i className="fas fa-user input-icon"></i>
                   <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
+                    type="text"
+                    id="username"
+                    name="username"
+                    value={formData.username}
                     onChange={handleChange}
-                    className={`form-input ${errors.email ? 'error' : ''}`}
-                    placeholder="Enter your email"
-                    autoComplete="email"
+                    className={`form-input ${errors.username ? 'error' : ''}`}
+                    placeholder="Enter your registered name"
+                    autoComplete="username"
                   />
                 </div>
-                {errors.email && (
+                {errors.username && (
                   <span className="error-message">
                     <i className="fas fa-exclamation-circle"></i>
-                    {errors.email}
+                    {errors.username}
                   </span>
                 )}
               </div>

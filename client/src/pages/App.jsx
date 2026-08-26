@@ -18,7 +18,6 @@ import useDailyReward from '../hooks/useDailyReward';
 import { books as booksData } from '../data/books';
 
 function AppContent() {
-  // --- STATE ---
   const [showDungeon, setShowDungeon] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState({ name: '', id: null });
@@ -26,20 +25,12 @@ function AppContent() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('audioMuted') === 'true');
 
-  // NEW: Track unlocked corrupted books and current dungeon book
   const [unlockedBooks, setUnlockedBooks] = useState([]);
   const [currentDungeonBook, setCurrentDungeonBook] = useState(null);
 
-  // 🎮 USE SHARED GAME ECONOMY CONTEXT
   const { kp, isLocked, timer, lockoutProgress } = useGameEconomyContext();
-
-  // 🎁 DAILY SUPPLY DROP HOOK FOR NAVBAR INDICATOR
   const { isReady: isDailyRewardReady, timeLeft: dailyTimeLeft } = useDailyReward(user.id);
-
-  // 📚 BOOKS DATA - Use centralized data from books.js
   const [books, setBooks] = useState(booksData);
-
-  // --- DARK MODE ---
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
 
   useEffect(() => {
@@ -52,7 +43,6 @@ function AppContent() {
     }
   }, [darkMode]);
 
-  // --- FETCH BOOKS FROM BACKEND (fallback to hardcoded if API fails) ---
   useEffect(() => {
     const fetchBooks = async () => {
       try {
@@ -60,7 +50,6 @@ function AppContent() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        // Normalize backend fields to frontend shape
         const normalized = (Array.isArray(data) ? data : []).map((b) => ({
           id: b.id,
           title: b.title,
@@ -82,7 +71,6 @@ function AppContent() {
     fetchBooks();
   }, []);
 
-  // --- SERVICES DATA (For Sliding Animation) ---
   const servicesData = [
     {
       id: 1,
@@ -117,7 +105,6 @@ function AppContent() {
     }
   ];
 
-  // --- NEWS DATA (Static) ---
   const newsData = [
     { 
       title: "ATTENTION: ALL UIU STUDENTS", 
@@ -144,70 +131,42 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // --- HANDLERS ---
-  const handleLogin = (e) => { 
-    e.preventDefault(); 
-    navigate('/login');
-  };
-  
-  /**
-   * 🚪 BULLETPROOF LOGOUT HANDLER
-   * Guarantees 100% clean slate for next user
-   * 
-   * This function performs a complete system reset:
-   * 1. Clears all localStorage data (user data, tokens, chat history)
-   * 2. Clears all sessionStorage data
-   * 3. Resets local component state
-   * 4. Forces hard page reload to clear React state tree
-   */
   const handleLogout = () => {
     console.log('🚪 [LOGOUT] Initiating complete system logout...');
     
-    // 🧹 STEP 1: Clear all localStorage keys
     const localStorageKeys = [
-      'library_user_data',      // UserContext data
-      'userToken',              // Auth token
-      'userId',                 // User ID
-      'chat_history',           // Chat messages (if exists)
-      'chatMessages',           // Alternative chat storage
-      'conversationHistory',    // AI chat history
-      'audioMuted',             // Audio preferences (optional - keep if you want)
-      'theme',                  // Theme preference (optional - keep if you want)
-      'game_economy_state',     // Game economy data
-      'daily_reward_timestamp', // Daily reward data
-      'lastClaimTime'           // Reward claim tracking
+      'library_user_data',      
+      'userToken',              
+      'userId',                 
+      'chat_history',           
+      'chatMessages',           
+      'conversationHistory',    
+      'audioMuted',             
+      'theme',                  
+      'game_economy_state',     
+      'daily_reward_timestamp', 
+      'lastClaimTime'           
     ];
     
     localStorageKeys.forEach(key => {
-      if (key !== 'audioMuted' && key !== 'theme') { // Keep user preferences
+      if (key !== 'audioMuted' && key !== 'theme') { 
         localStorage.removeItem(key);
-        console.log(`✅ [LOGOUT] Cleared localStorage: ${key}`);
       }
     });
     
-    // 🧹 STEP 2: Clear all sessionStorage
     sessionStorage.clear();
-    console.log('✅ [LOGOUT] Cleared sessionStorage');
-    
-    // 🧹 STEP 3: Reset local component state
     setIsLoggedIn(false);
     setUser({ name: '', id: null });
     setUnlockedBooks([]);
     setSelectedBook(null);
     setCurrentDungeonBook(null);
-    console.log('✅ [LOGOUT] Reset local component state');
-    
-    // 🧹 STEP 4: Force hard reload to clear ALL in-memory state
-    // This clears React component tree, contexts, and any lingering variables
-    console.log('🔄 [LOGOUT] Forcing hard reload to /login...');
     
     setTimeout(() => {
-      window.location.href = '/login'; // Hard reload (NOT navigate())
-    }, 100); // Small delay to ensure logs are printed
+      window.location.href = '/'; 
+    }, 100); 
   };
 
   const handleBookClick = (book) => {
-    // Always navigate to book details page, regardless of corruption status
     navigate(`/book/${book.id}`);
   };
 
@@ -216,11 +175,31 @@ function AppContent() {
     setIsPlaying(true);
   };
 
+  // 🔥 PERMANENT BACKEND SAVE LOGIC ADDED HERE
   const handleDungeonWin = async (bookId) => {
     const targetBookId = bookId || currentDungeonBook?.id;
     
     if (targetBookId && !unlockedBooks.includes(targetBookId)) {
       setUnlockedBooks(prev => [...prev, targetBookId]);
+
+      // If user is logged in, save this permanently to MySQL
+      if (user.id) {
+        try {
+          const response = await fetch(`http://localhost:8080/api/players/${user.id}/unlock`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookId: targetBookId })
+          });
+
+          if (!response.ok) {
+            console.error('❌ Failed to save purified book to database!');
+          } else {
+            console.log('✅ Book purification saved to MySQL permanently!');
+          }
+        } catch (error) {
+          console.error('❌ Backend connection error:', error);
+        }
+      }
     }
     
     setIsPlaying(false);
@@ -244,15 +223,10 @@ function AppContent() {
             id: parseInt(storedUserId)
           });
           
-          // Load unlocked books from user data
           if (userData.unlockedBooks && Array.isArray(userData.unlockedBooks)) {
             setUnlockedBooks(userData.unlockedBooks);
           }
-          
-          console.log('User logged in:', userData.username, 'ID:', storedUserId);
         } catch (error) {
-          console.error('Error parsing stored user data:', error);
-          // Clear invalid data
           localStorage.removeItem('userToken');
           sessionStorage.removeItem('userToken');
         }
@@ -264,9 +238,8 @@ function AppContent() {
     };
 
     checkUserAuth();
-  }, [location]); // Re-run when location changes
+  }, [location]); 
 
-  // 🔋 SHOW RECHARGE OVERLAY IF LOCKED
   if (isLocked) {
     return (
       <RechargeOverlay 
@@ -279,14 +252,9 @@ function AppContent() {
 
   return (
     <div className="app-container">
-      
-      {/* 🎵 AUDIO CONTROLLER - Background Ambience */}
       <AudioController onMuteChange={setIsMuted} />
-      
-      {/* 🎮 DEVELOPER CONSOLE - Press ` to toggle */}
       <DevConsole />
 
-      {/* --- NAVBAR --- */}
       <nav className="navbar">
         <div className="container">
           <div className="nav-wrapper">
@@ -309,7 +277,6 @@ function AppContent() {
                 </div>
               ) : (
                 <div className="player-info" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {/* 🎁 DAILY SUPPLY DROP INDICATOR */}
                   {isLoggedIn && user.id && (
                     <div
                       onClick={() => navigate('/profile')}
@@ -331,26 +298,9 @@ function AppContent() {
                         animation: isDailyRewardReady ? 'pulse 1.5s infinite' : 'none',
                         boxShadow: isDailyRewardReady ? '0 0 15px rgba(255, 215, 0, 0.5)' : 'none'
                       }}
-                      onMouseEnter={(e) => {
-                        if (isDailyRewardReady) {
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 5px 20px rgba(255, 215, 0, 0.7)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (isDailyRewardReady) {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.5)';
-                        }
-                      }}
-                      title={isDailyRewardReady ? 'Daily reward ready! Click to claim' : `Next drop: ${dailyTimeLeft}`}
                     >
                       <i className="fas fa-gift" style={{ fontSize: '1.1rem' }}></i>
-                      {isDailyRewardReady ? (
-                        <span>READY!</span>
-                      ) : (
-                        <span>{dailyTimeLeft}</span>
-                      )}
+                      {isDailyRewardReady ? <span>READY!</span> : <span>{dailyTimeLeft}</span>}
                     </div>
                   )}
                   
@@ -368,16 +318,7 @@ function AppContent() {
                       fontWeight: 'bold',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      transition: 'transform 0.3s ease, box-shadow 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 5px 20px rgba(146, 78, 255, 0.5)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
+                      gap: '5px'
                     }}
                   >
                     <i className="fas fa-id-card"></i> AGENT ID
@@ -388,7 +329,6 @@ function AppContent() {
                 </div>
               )}
               
-              {/* 🔊 AUDIO MUTE TOGGLE */}
               <button 
                 className="theme-toggle" 
                 onClick={() => window.toggleAudio && window.toggleAudio()}
@@ -406,74 +346,22 @@ function AppContent() {
         </div>
       </nav>
 
-      {/* --- ROUTES --- */}
       <Routes>
-        <Route 
-          path="/" 
-          element={
-            <LandingPage 
-              books={books}
-              handleBookClick={handleBookClick}
-              servicesData={servicesData}
-              newsData={newsData}
-              isLoggedIn={isLoggedIn}
-            />
-          } 
-        />
-        <Route 
-          path="/dashboard" 
-          element={
-            <LibraryDashboard 
-              books={books}
-              handleBookClick={handleBookClick}
-              user={{...user, kp}}
-            />
-          } 
-        />
-        <Route 
-          path="/book/:id" 
-          element={
-            <BookDetails 
-              books={books}
-              onEnterDungeon={handleEnterDungeon}
-              unlockedBooks={unlockedBooks}
-            />
-          } 
-        />
-        <Route 
-          path="/dungeon-platform/:bookId" 
-          element={
-            <DungeonPlatform 
-              books={books}
-              unlockedBooks={unlockedBooks}
-              onWin={handleDungeonWin}
-            />
-          } 
-        />
+        <Route path="/" element={<LandingPage books={books} handleBookClick={handleBookClick} servicesData={servicesData} newsData={newsData} isLoggedIn={isLoggedIn} />} />
+        <Route path="/dashboard" element={<LibraryDashboard books={books} handleBookClick={handleBookClick} user={{...user, kp}} />} />
+        <Route path="/book/:id" element={<BookDetails books={books} onEnterDungeon={handleEnterDungeon} unlockedBooks={unlockedBooks} />} />
+        <Route path="/dungeon-platform/:bookId" element={<DungeonPlatform books={books} unlockedBooks={unlockedBooks} onWin={handleDungeonWin} />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route 
-          path="/profile" 
-          element={
-            <Profile 
-              user={{...user, kp}}
-              unlockedBooks={unlockedBooks}
-            />
-          } 
-        />
+        <Route path="/profile" element={<Profile user={{...user, kp}} unlockedBooks={unlockedBooks} />} />
       </Routes>
 
-      {/* --- FOOTER (RESTORED DISCORD STYLE) --- */}
       <footer className="discord-footer" id="contact">
         <div className="container">
-            
             <div className="discord-footer-grid">
-                {/* BRAND COLUMN */}
                 <div className="footer-brand">
                     <h2><i className="fas fa-book-open"></i> Bibliotheca</h2>
-                    <p style={{color:'#aaa', maxWidth:'300px'}}>
-                        Your gateway to knowledge. Explore our vast collection of digital and physical resources.
-                    </p>
+                    <p style={{color:'#aaa', maxWidth:'300px'}}>Your gateway to knowledge. Explore our vast collection of digital and physical resources.</p>
                     <div className="social-row">
                         <i className="fab fa-twitter"></i>
                         <i className="fab fa-instagram"></i>
@@ -481,8 +369,6 @@ function AppContent() {
                         <i className="fab fa-youtube"></i>
                     </div>
                 </div>
-
-                {/* LINKS COLUMN 1 */}
                 <div className="footer-col">
                     <h4>Contact</h4>
                     <ul>
@@ -491,8 +377,6 @@ function AppContent() {
                         <li><p><i className="fas fa-phone"></i> +1 (234) 567-890</p></li>
                     </ul>
                 </div>
-
-                {/* LINKS COLUMN 2 */}
                 <div className="footer-col">
                     <h4>Discover</h4>
                     <ul>
@@ -502,8 +386,6 @@ function AppContent() {
                         <li><a href="#news">News</a></li>
                     </ul>
                 </div>
-
-                {/* LINKS COLUMN 3 */}
                 <div className="footer-col">
                     <h4>Timing</h4>
                     <ul>
@@ -513,19 +395,15 @@ function AppContent() {
                     </ul>
                 </div>
             </div>
-
             <div className="discord-bottom">
                 <button className="btn-primary" onClick={() => navigate('/register')}>Sign Up Now</button>
                 <p style={{color:'#777'}}>&copy; 2026 Bibliotheca. All rights reserved.</p>
             </div>
-
         </div>
       </footer>
 
-      {/* --- CHATBOT --- */}
       <ChatBot />
 
-      {/* --- DUNGEON GAME --- */}
       {isPlaying && (
         <DungeonGame 
           onClose={() => setIsPlaying(false)}
@@ -533,12 +411,10 @@ function AppContent() {
           onLoss={handleDungeonLoss}
         />
       )}
-
     </div>
   );
 }
 
-// WRAPPER COMPONENT WITH PROVIDER
 function App() {
   const [user, setUser] = useState({ name: '', id: null });
   const location = useLocation();

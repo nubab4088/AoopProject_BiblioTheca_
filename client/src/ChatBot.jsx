@@ -4,17 +4,12 @@ import { books as booksData } from './data/books';
 import './ChatBot.css';
 
 /**
- * ChatBot - Wizard of Oz Mode (Mock AI) with Ghost Librarian Theme
- * 
- * This component simulates an AI assistant without requiring a backend API.
- * Perfect for demos, presentations, or offline testing.
+ * ChatBot - Real AI Integration with Ghost Librarian Persona
  * 
  * Features:
- * - Scripted intelligent responses based on keywords
- * - REAL-TIME data from UserContext (unlocked books, KP)
- * - Realistic typing delay (1200ms) to simulate processing
- * - Spooky ghost librarian aesthetic
- * - No external dependencies
+ * - Connects to Spring Boot Backend for live AI generation
+ * - Injects live game context (KP, Books) into the AI prompt
+ * - Fallback to local Wizard of Oz script if backend is offline
  */
 
 function ChatBot() {
@@ -29,23 +24,16 @@ function ChatBot() {
   const { user } = useUser();
 
   /**
-   * 🎭 MOCK AI INTELLIGENCE ENGINE
-   * Generates scripted responses with spooky ghost librarian personality
-   * NOW WITH REAL-TIME DATA FROM USER CONTEXT
-   * 
-   * @param {string} input - User's message
-   * @returns {string} Ghost Librarian response
+   * 🎭 OFFLINE FALLBACK ENGINE
+   * Generates scripted responses if the backend AI fails or is turned off
    */
   const generateMockResponse = (input) => {
     const lowerInput = input.toLowerCase().trim();
-
-    // 📊 CALCULATE REAL-TIME STATISTICS
     const totalBooks = booksData.length;
     const corruptedBooks = booksData.filter(book => book.isCorrupted);
     const totalCorrupted = corruptedBooks.length;
     const unlockedBooks = user?.unlockedBooks || [];
     
-    // Count how many corrupted books are restored
     const restoredCount = corruptedBooks.filter(book => 
       unlockedBooks.includes(book.id) || unlockedBooks.includes(String(book.id))
     ).length;
@@ -53,73 +41,36 @@ function ChatBot() {
     const stillCorrupted = totalCorrupted - restoredCount;
     const userKP = user?.kp || 0;
 
-    // 👋 GREETINGS
     if (lowerInput.match(/\b(hi|hello|hey|greetings|sup|yo)\b/)) {
       return "👻 Greetings, mortal... I sense your presence in the ethereal realm. The spirits have much to tell you. What knowledge do you seek?";
     }
-
-    // 📊 BOOK COUNT / STATISTICS - REAL-TIME DATA
-    if (lowerInput.match(/\b(how many|count|total|number of)\b/) || 
-        lowerInput.includes('books')) {
-      return `🕯️ *The candles flicker as I consult the spectral archives...*\n\n📚 The spirits whisper:\n• Total Volumes: ${totalBooks} ancient tomes\n• ✅ RESTORED: ${restoredCount} (freed from corruption)\n• 🔴 CORRUPTED: ${stillCorrupted} (still trapped in darkness)\n\n*${stillCorrupted === 0 ? 'All books have been liberated! The library is at peace... 🌟' : 'The books cry out for salvation, mortal...*'}`;
+    if (lowerInput.match(/\b(how many|count|total|number of)\b/) || lowerInput.includes('books')) {
+      return `🕯️ *The candles flicker as I consult the spectral archives...*\n\n📚 The spirits whisper:\n• Total Volumes: ${totalBooks} ancient tomes\n• ✅ RESTORED: ${restoredCount}\n• 🔴 CORRUPTED: ${stillCorrupted}\n\n*${stillCorrupted === 0 ? 'All books have been liberated! 🌟' : 'The books cry out for salvation...* '}`;
     }
-
-    // 🖥️ SYSTEM STATUS - REAL-TIME DATA
     if (lowerInput.match(/\b(status|system|health|integrity|check)\b/)) {
-      const corruptionPercentage = totalCorrupted > 0 
-        ? Math.round((stillCorrupted / totalCorrupted) * 100)
-        : 0;
-      
-      const statusMessage = corruptionPercentage === 0
-        ? '✅ SYSTEM INTEGRITY: STABLE\n\n🔮 The spirits rejoice:\n• All corruption has been purged\n• Neural pathways: 100% restored\n• The library is whole once more\n\n*Peace has returned to the digital realm...*'
-        : `💀 *The ethereal winds grow cold...*\n\n⚠️ SYSTEM INTEGRITY: UNSTABLE\n\n🔮 The spirits report:\n• Corruption spreads through ${corruptionPercentage}% of archives\n• ${stillCorrupted} dark force${stillCorrupted !== 1 ? 's' : ''} detected\n• Immediate exorcism protocols required\n\n*Only you can banish the digital demons, mortal...*`;
-      
-      return statusMessage;
+      const corruptionPercentage = totalCorrupted > 0 ? Math.round((stillCorrupted / totalCorrupted) * 100) : 0;
+      return corruptionPercentage === 0
+        ? '✅ SYSTEM INTEGRITY: STABLE\n\n🔮 All corruption has been purged. Peace has returned to the digital realm...'
+        : `💀 *The ethereal winds grow cold...*\n\n⚠️ SYSTEM INTEGRITY: UNSTABLE\n\n🔮 Corruption spreads through ${corruptionPercentage}% of archives. Immediate exorcism protocols required.`;
     }
-
-    // 💰 KNOWLEDGE POINTS - REAL-TIME DATA
     if (lowerInput.match(/\b(kp|knowledge|points|xp|experience|earn)\b/)) {
       const clearanceLevel = Math.floor(userKP / 100) + 1;
-      return `💰 *Ancient runes glow with power...*\n\nYOUR SPIRITUAL ESSENCE:\n\n✨ Current KP: ${userKP}\n🎖️ Clearance Level: ${clearanceLevel}\n\nKNOWLEDGE POINTS (KP):\n\n✨ Harvest KP by:\n• Completing exorcism rituals\n• Mining spectral data\n\n📈 Powers granted:\n• Ascend to higher clearance levels\n• Unlock forbidden protocols\n• Track your restoration quest\n\n*The spirits reward those who serve the library...*`;
+      return `💰 YOUR SPIRITUAL ESSENCE:\n✨ Current KP: ${userKP}\n🎖️ Clearance Level: ${clearanceLevel}\n\n*The spirits reward those who serve the library...*`;
     }
-
-    // 📖 BOOK HELP / PURIFICATION
     if (lowerInput.match(/\b(book|purify|corrupt|unlock|restore|access)\b/)) {
-      return "📖 *An ancient scroll materializes before you...*\n\nBOOK EXORCISM RITUAL:\n\n1️⃣ Identify the CURSED tome (marked with virus sigil)\n2️⃣ Click 'PURIFY' to begin the ritual\n3️⃣ Choose the REQUIRED exorcism protocol\n4️⃣ Complete the spiritual challenge\n5️⃣ The book shall be LIBERATED!\n\n💡 *Whisper: Each cursed book requires a specific ritual...*";
+      return "📖 BOOK EXORCISM RITUAL:\n1️⃣ Identify the CURSED tome\n2️⃣ Click 'PURIFY'\n3️⃣ Complete the spiritual challenge to liberate it!";
     }
-
-    // 🎮 GAMES / PROTOCOLS
-    if (lowerInput.match(/\b(game|protocol|play|challenge|dungeon)\b/)) {
-      return "🎮 *The spirits summon ancient challenges...*\n\nEXORCISM PROTOCOLS:\n\n• 🧠 Memory Matrix (Easy) - +30 KP\n• 📡 Signal Lock (Medium) - +45 KP\n• ⚡ Circuit Overload (Hard) - +60 KP\n• 🔑 Cipher Breaker (Hard) - +75 KP\n\n⚠️ *Beware: Failure feeds the darkness and drains your essence...*";
-    }
-
-    // ❓ HELP / COMMANDS
-    if (lowerInput.match(/\b(help|command|what can|assist|guide)\b/)) {
-      return "🕯️ *The Ghost Librarian's grimoire opens...*\n\nSUMMON MY WISDOM:\n\n💀 Try invoking:\n• 'System Status' - Diagnostic séance\n• 'Book Count' - Archive census\n• 'Protocols' - Ritual catalog\n• 'How to purify' - Exorcism guide\n• 'Knowledge Points' - Spiritual currency\n\n*I dwell between pages, waiting to guide you...*";
-    }
-
-    // 😊 THANKS
-    if (lowerInput.match(/\b(thank|thanks|thx|appreciate)\b/)) {
-      return "👻 *A spectral smile appears in the mist...*\n\nYou honor me, mortal. May the spirits guide your path through the corrupted archives. 🕯️";
-    }
-
-    // 👋 GOODBYE
-    if (lowerInput.match(/\b(bye|goodbye|exit|quit|see you)\b/)) {
-      return "💀 *The ghost fades into the shadows...*\n\nFarewell, brave soul. I shall wait here, among the dusty tomes, until you return. The library never forgets... 🌙";
-    }
-
-    // 🤔 DEFAULT RESPONSE (Unrecognized input)
-    return "👻 *The ghost tilts its ethereal head in confusion...*\n\n⚡ Your words echo strangely through the void, mortal...\n\nPerhaps ask about:\n• 'System Status'\n• 'Book Count'\n• 'Protocols'\n• 'Help'\n\n*Speak clearly, and the spirits shall answer...*";
+    return "👻 *The ghost tilts its ethereal head in confusion...*\n\n⚡ Your words echo strangely through the void, mortal...\nPerhaps ask about 'System Status', 'Book Count', or 'KP'.";
   };
 
   /**
    * 📤 SEND MESSAGE HANDLER
-   * Simulates AI processing with realistic delay
+   * Connects to Spring Boot AI Backend
    */
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    // Add user message to chat
+    // 1. Add user message to UI
     const userMessage = { sender: 'user', text: inputValue };
     setMessages(prev => [...prev, userMessage]);
     
@@ -127,15 +78,54 @@ function ChatBot() {
     setInputValue('');
     setIsTyping(true);
 
-    // 🎭 SIMULATE AI PROCESSING DELAY (1200ms)
-    // This creates the illusion of a real AI "thinking"
-    setTimeout(() => {
-      const ghostResponse = generateMockResponse(currentInput);
-      const ghostMessage = { sender: 'ghost', text: ghostResponse };
+    try {
+      // 2. Build the context-aware prompt for the AI
+      const userKP = user?.kp || 0;
+      const restoredCount = user?.unlockedBooks?.length || 0;
       
-      setMessages(prev => [...prev, ghostMessage]);
+      const engineeredPrompt = `
+        You are the Ghost Librarian of the BiblioTheca digital library. 
+        Adopt a spooky, ethereal, and wise persona. 
+        Context about the current user: They have ${userKP} Knowledge Points (KP) and have restored ${restoredCount} corrupted books.
+        User asks: "${currentInput}"
+        Please answer the user concisely in character.
+      `;
+
+      // 3. Send request matching your Java ChatRequest model
+      const response = await fetch('http://localhost:8080/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message: engineeredPrompt,        // Matches ChatRequest.getMessage()
+          conversationHistory: []           // Matches ChatRequest.getConversationHistory()
+        })
+      });
+
+      if (!response.ok) throw new Error('Backend AI request failed');
+      
+      // 4. Parse the JSON matching your Java ChatResponse model
+      const data = await response.json();
+      
+      // We check multiple common field names (response, message, text, aiResponse)
+      // to ensure we grab the right string from your ChatResponse object!
+      const aiResponseText = data.response || data.message || data.text || data.aiResponse || "👻 *The spirits are whispering in a language I cannot decipher...*";
+      
+      setMessages(prev => [...prev, { sender: 'ghost', text: aiResponseText }]);
+
+    } catch (error) {
+      console.error("AI API failed, falling back to local ghost script:", error);
+      
+      // 5. Offline Fallback Logic
+      setTimeout(() => {
+        const ghostResponse = generateMockResponse(currentInput);
+        setMessages(prev => [...prev, { sender: 'ghost', text: ghostResponse }]);
+      }, 1000);
+
+    } finally {
       setIsTyping(false);
-    }, 1200); // Realistic latency for perceived intelligence
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -150,73 +140,43 @@ function ChatBot() {
 
   return (
     <>
-      {/* Floating Chat Button */}
-      <button 
-        className="chatbot-float-btn" 
-        onClick={() => setIsOpen(!isOpen)}
-        title="Summon the Ghost Librarian"
-      >
+      <button className="chatbot-float-btn" onClick={() => setIsOpen(!isOpen)} title="Summon the Ghost Librarian">
         <i className="fas fa-ghost"></i>
       </button>
 
-      {/* Chat Window */}
       {isOpen && (
         <div className="chatbot-window">
-          
-          {/* Header */}
           <div className="chatbot-header">
             <div className="chatbot-header-left">
               <i className="fas fa-ghost" style={{marginRight: '10px'}}></i>
               <span>Ghost Librarian</span>
               <span style={{
-                fontSize: '0.7rem', 
-                marginLeft: '8px', 
-                opacity: 0.6,
-                background: 'rgba(138, 43, 226, 0.2)',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                color: '#a78bfa'
-              }}>
-                ETHEREAL
-              </span>
+                fontSize: '0.7rem', marginLeft: '8px', opacity: 0.6,
+                background: 'rgba(138, 43, 226, 0.2)', padding: '2px 6px',
+                borderRadius: '4px', color: '#a78bfa'
+              }}>ETHEREAL</span>
             </div>
-            <button 
-              className="chatbot-close-btn" 
-              onClick={handleClose}
-            >
-              &times;
-            </button>
+            <button className="chatbot-close-btn" onClick={handleClose}>&times;</button>
           </div>
 
-          {/* Messages Area */}
           <div className="chatbot-messages">
             {messages.map((msg, index) => (
-              <div 
-                key={index} 
-                className={`chatbot-message ${msg.sender === 'user' ? 'user-message' : 'ghost-message'}`}
-              >
-                <div className="message-bubble" style={{
-                  whiteSpace: 'pre-line', // Preserve line breaks in responses
-                  textAlign: 'left'
-                }}>
+              <div key={index} className={`chatbot-message ${msg.sender === 'user' ? 'user-message' : 'ghost-message'}`}>
+                <div className="message-bubble" style={{ whiteSpace: 'pre-line', textAlign: 'left' }}>
                   {msg.text}
                 </div>
               </div>
             ))}
             
-            {/* Typing Indicator */}
             {isTyping && (
               <div className="chatbot-message ghost-message">
                 <div className="message-bubble typing-indicator">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+                  <span></span><span></span><span></span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Input Area */}
           <div className="chatbot-input-area">
             <input 
               type="text" 
@@ -227,15 +187,10 @@ function ChatBot() {
               className="chatbot-input"
               disabled={isTyping}
             />
-            <button 
-              className="chatbot-send-btn" 
-              onClick={handleSendMessage}
-              disabled={isTyping || !inputValue.trim()}
-            >
+            <button className="chatbot-send-btn" onClick={handleSendMessage} disabled={isTyping || !inputValue.trim()}>
               <i className="fas fa-paper-plane"></i>
             </button>
           </div>
-
         </div>
       )}
     </>

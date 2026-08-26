@@ -126,23 +126,40 @@ export const UserProvider = ({ children }) => {
     });
   };
 
-  // 📚 UNLOCK BOOK (Add to collection)
-  const unlockBook = (bookId) => {
+  // 📚 UNLOCK BOOK (Add to collection permanently via Backend Sync)
+  const unlockBook = async (bookId) => {
+    // 🔍 NORMALIZE ID: Convert to integer for consistency
+    const normalizedId = parseInt(bookId, 10);
+    
+    // ❌ INVALID ID: Reject non-numeric IDs
+    if (isNaN(normalizedId)) {
+      console.error(`❌ Invalid book ID: ${bookId}`);
+      return false;
+    }
+
+    // 👤 Fetch the active user's ID to sync with MySQL
+    const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+
+    // 🔥 SEND TO BACKEND FIRST (If user is logged in and doesn't already have it locally)
+    if (userId && !user.unlockedBooks.includes(normalizedId)) {
+      try {
+        await fetch(`http://localhost:8080/api/players/${userId}/unlock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookId: normalizedId })
+        });
+        console.log(`✅ Backend Sync: Book ${normalizedId} saved to database for user ${userId}`);
+      } catch (error) {
+        console.error('❌ Backend sync failed', error);
+      }
+    }
+
+    // 💻 Update React State
     return new Promise((resolve) => {
       setUser(prev => {
-        // 🔍 NORMALIZE ID: Convert to integer for consistency
-        const normalizedId = parseInt(bookId, 10);
-        
-        // ❌ INVALID ID: Reject non-numeric IDs
-        if (isNaN(normalizedId)) {
-          console.error(`❌ Invalid book ID: ${bookId}`);
-          resolve(false);
-          return prev;
-        }
-        
         // ℹ️ ALREADY UNLOCKED: Prevent duplicates
         if (prev.unlockedBooks.includes(normalizedId)) {
-          console.log(`ℹ️ Book ${normalizedId} already unlocked - skipping`);
+          console.log(`ℹ️ Book ${normalizedId} already unlocked locally - skipping`);
           resolve(false);
           return prev;
         }
@@ -218,14 +235,23 @@ export const UserProvider = ({ children }) => {
   // 🧹 CLEAR ALL DATA (Full reset to default)
   const clearAllData = () => {
     console.log('🧹 CLEARING ALL USER DATA - Full reset');
+    
+    // Clear context storage
     localStorage.removeItem(STORAGE_KEY);
+    
+    // 🔥 CLEAR SECURITY TOKENS: This proves to your router that you are a guest
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userId');
+    sessionStorage.removeItem('userToken');
+    sessionStorage.removeItem('userId');
+    
     setUser({ ...DEFAULT_USER });
   };
 
-  // 🔃 RELOAD APP (Useful for demo/testing)
+  // 🔃 ROUTE TO HOMEPAGE (Force return to public dashboard)
   const reloadApp = () => {
-    console.log('🔃 Reloading application...');
-    window.location.reload();
+    console.log('🔃 Routing to Homepage...');
+    window.location.href = '/'; // 🔥 FORCES REDIRECT TO HOME PAGE INSTEAD OF RELOAD
   };
 
   // 🚪 LOGOUT (Reset to guest)

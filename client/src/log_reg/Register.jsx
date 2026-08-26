@@ -4,6 +4,7 @@ import '../styles/Auth.css';
 
 function Register() {
   const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -88,7 +89,7 @@ function Register() {
     if (!validateForm()) return;
     
     setIsLoading(true);
-    setErrors({}); // Clear previous errors
+    setErrors({}); 
     
     try {
       const response = await fetch('http://localhost:8080/api/players/register', {
@@ -107,9 +108,10 @@ function Register() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Registration successful - Store user data and navigate
-      console.log('Registration successful:', data);
+      // 🔥 FIXED: Removed the auto-login logic. User is now routed directly to the Login page!
+      console.log('Registration successful! Redirecting to Login...');
       navigate('/login', { state: { message: 'Account created successfully! Please sign in.' } });
+      
     } catch (error) {
       console.error('Registration error:', error);
       setErrors({ submit: error.message || 'Failed to connect to server. Please make sure the backend is running.' });

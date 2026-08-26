@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Collections;
 
 @RestController
 @RequestMapping("/api/players")
@@ -26,15 +27,11 @@ public class PlayerController {
     // Register a new player
     @PostMapping("/register")
     public ResponseEntity<?> registerPlayer(@RequestBody Map<String, String> credentials) {
-        String username = credentials.get("username");
+        String username = credentials.get("username"); // Still captures the name
         String email = credentials.get("email");
         String password = credentials.get("password");
 
-        if (playerRepository.existsByUsername(username)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "Username already exists"));
-        }
-
+        // 🔥 FIXED: We only check if the EMAIL exists now. Names can be duplicated!
         if (playerRepository.existsByEmail(email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Email already exists"));
@@ -59,12 +56,11 @@ public class PlayerController {
         String usernameOrEmail = credentials.get("username");
         String password = credentials.get("password");
 
-        // Try to find by username first, then by email
-        Optional<Player> playerOpt = playerRepository.findByUsername(usernameOrEmail);
+        // Try to find by email first (since it's unique), then by username
+        Optional<Player> playerOpt = playerRepository.findByEmail(usernameOrEmail);
         
         if (playerOpt.isEmpty()) {
-            // If not found by username, try email
-            playerOpt = playerRepository.findByEmail(usernameOrEmail);
+            playerOpt = playerRepository.findByUsername(usernameOrEmail);
         }
 
         if (playerOpt.isEmpty() || !playerOpt.get().getPassword().equals(password)) {
@@ -104,12 +100,6 @@ public class PlayerController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * NEW ENDPOINT: Update Knowledge Points (Production-Ready)
-     * Handles both additions and deductions with transaction safety
-     * POST /api/players/{id}/kp
-     * Body: { "amount": 50 } or { "amount": -50 }
-     */
     @PostMapping("/{id}/kp")
     public ResponseEntity<?> updateKnowledgePoints(@PathVariable Long id, @RequestBody Map<String, Integer> request) {
         try {
@@ -131,11 +121,6 @@ public class PlayerController {
         }
     }
 
-    /**
-     * NEW ENDPOINT: Restore Energy After Lockout
-     * Sets KP to 50 after the 10-second recharge period
-     * POST /api/players/{id}/restore
-     */
     @PostMapping("/{id}/restore")
     public ResponseEntity<?> restoreEnergy(@PathVariable Long id) {
         try {
@@ -155,7 +140,6 @@ public class PlayerController {
         }
     }
 
-    // Unlock a book (after dungeon win) - Award +50 KP
     @PostMapping("/{id}/unlock-book")
     public ResponseEntity<?> unlockBook(@PathVariable Long id, @RequestBody Map<String, Long> request) {
         Optional<Player> playerOpt = playerRepository.findById(id);
@@ -168,7 +152,6 @@ public class PlayerController {
         Player player = playerOpt.get();
         Long bookId = request.get("bookId");
         
-        // Check if player has minimum KP to play
         if (!playerService.canPlay(id)) {
             long cooldown = playerService.getRemainingLockoutTime(player);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -181,8 +164,6 @@ public class PlayerController {
         }
         
         player.addUnlockedBook(bookId);
-        
-        // Use service layer for KP transaction
         player = playerService.handleWin(id);
 
         Map<String, Object> response = new HashMap<>();
@@ -195,11 +176,9 @@ public class PlayerController {
         return ResponseEntity.ok(response);
     }
 
-    // Dungeon failure - Deduct 50 KP (FIXED VERSION)
     @PostMapping("/{id}/dungeon-failed")
     public ResponseEntity<?> dungeonFailed(@PathVariable Long id) {
         try {
-            // Use service layer to ensure immediate deduction
             Player player = playerService.handleLoss(id);
 
             Map<String, Object> response = new HashMap<>();
@@ -217,7 +196,6 @@ public class PlayerController {
         }
     }
 
-    // Check if player can play and get status
     @GetMapping("/{id}/can-play")
     public ResponseEntity<?> canPlay(@PathVariable Long id) {
         try {
@@ -236,7 +214,6 @@ public class PlayerController {
         }
     }
 
-    // Update KP manually (for other actions) - DEPRECATED, use /kp endpoint
     @PostMapping("/{id}/add-kp")
     public ResponseEntity<?> addKnowledgePoints(@PathVariable Long id, @RequestBody Map<String, Integer> request) {
         Optional<Player> playerOpt = playerRepository.findById(id);
@@ -259,15 +236,6 @@ public class PlayerController {
         return ResponseEntity.ok(response);
     }
     
-    // 🎁 ========================================
-    // DAILY SUPPLY DROP ENDPOINTS (24-Hour Reward)
-    // 🎁 ========================================
-    
-    /**
-     * Get daily reward status
-     * GET /api/players/{id}/daily-reward/status
-     * Returns: { isReady, remainingSeconds, nextClaimTime, rewardAmount, lastClaimed }
-     */
     @GetMapping("/{id}/daily-reward/status")
     public ResponseEntity<?> getDailyRewardStatus(@PathVariable Long id) {
         try {
@@ -279,11 +247,6 @@ public class PlayerController {
         }
     }
     
-    /**
-     * Claim daily reward (+100 KP)
-     * POST /api/players/{id}/daily-reward/claim
-     * Returns updated player data with new KP or error if on cooldown
-     */
     @PostMapping("/{id}/daily-reward/claim")
     public ResponseEntity<?> claimDailyReward(@PathVariable Long id) {
         try {
@@ -314,16 +277,6 @@ public class PlayerController {
         }
     }
     
-    // 📚 ========================================
-    // PERSISTENT BOOK UNLOCK ENDPOINTS
-    // 📚 ========================================
-    
-    /**
-     * Complete a dungeon level - Awards KP and unlocks book on first-time win
-     * POST /api/players/{id}/complete-level
-     * Body: { "bookId": 1, "isWin": true }
-     * Returns: { newKp, unlockedBookIds, firstTimeUnlock, kpChange, isLocked, remainingLockoutTime }
-     */
     @PostMapping("/{id}/complete-level")
     public ResponseEntity<?> completeLevel(@PathVariable Long id, @RequestBody Map<String, Object> request) {
         try {
@@ -339,11 +292,6 @@ public class PlayerController {
         }
     }
     
-    /**
-     * Get all unlocked books for a player
-     * GET /api/players/{id}/unlocked-books
-     * Returns: [1, 3, 5, 7] (array of book IDs)
-     */
     @GetMapping("/{id}/unlocked-books")
     public ResponseEntity<?> getUnlockedBooks(@PathVariable Long id) {
         try {
@@ -352,6 +300,31 @@ public class PlayerController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id}/unlock")
+    public ResponseEntity<?> unlockBookSimple(@PathVariable Long id, @RequestBody Map<String, Long> request) {
+        try {
+            Optional<Player> playerOpt = playerRepository.findById(id);
+            
+            if (playerOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Collections.singletonMap("error", "Player not found"));
+            }
+
+            Player player = playerOpt.get();
+            Long bookId = request.get("bookId");
+            
+            if (bookId != null && !player.getUnlockedBooks().contains(bookId)) {
+                player.addUnlockedBook(bookId);
+                playerRepository.save(player);
+            }
+            
+            return ResponseEntity.ok(Collections.singletonMap("message", "Book successfully purified and permanently saved to MySQL!"));
+            
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", e.getMessage()));
         }
     }
 }
