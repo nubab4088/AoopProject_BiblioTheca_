@@ -92,7 +92,8 @@ function Register() {
     setErrors({}); 
     
     try {
-      const response = await fetch('http://localhost:8080/api/players/register', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/players/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +109,6 @@ function Register() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // 🔥 FIXED: Removed the auto-login logic. User is now routed directly to the Login page!
       console.log('Registration successful! Redirecting to Login...');
       navigate('/login', { state: { message: 'Account created successfully! Please sign in.' } });
       

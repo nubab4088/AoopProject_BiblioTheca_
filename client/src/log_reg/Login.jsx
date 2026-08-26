@@ -55,7 +55,8 @@ function Login() {
     setErrors({}); 
     
     try {
-      const response = await fetch('http://localhost:8080/api/players/login', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/players/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,14 +71,12 @@ function Login() {
         throw new Error(data.error || 'Invalid username or password');
       }
 
-      // 1. Update the React Context for your Profile Badge
       updateUser({
         name: data.username,
         kp: data.knowledgePoints || 150,
         unlockedBooks: data.unlockedBooks || []
       });
 
-      // 2. Format the token EXACTLY as your router expects
       const tokenData = {
         id: data.id,
         username: data.username,
@@ -86,7 +85,6 @@ function Login() {
         unlockedBooks: data.unlockedBooks || []
       };
 
-      // 3. Save the token so your app doesn't kick you back to login
       if (formData.rememberMe) {
         localStorage.setItem('userToken', JSON.stringify(tokenData));
         localStorage.setItem('userId', data.id);
