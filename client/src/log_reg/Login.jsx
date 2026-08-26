@@ -55,7 +55,7 @@ function Login() {
     setErrors({}); 
     
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://aoopprojectbibliotheca-production.up.railway.app';
       const response = await fetch(`${API_URL}/api/players/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
