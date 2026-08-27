@@ -46,7 +46,10 @@ function AppContent() {
   useEffect(() => {
     const fetchBooks = async () => {
       try {
-        const res = await fetch('http://localhost:8080/api/books');
+        // 🔥 FIXED: Dynamic URL for books
+        const API_URL = import.meta.env.VITE_API_URL || 'https://aoopprojectbibliotheca-production.up.railway.app';
+        const res = await fetch(`${API_URL}/api/books`);
+        
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -185,7 +188,9 @@ function AppContent() {
       // If user is logged in, save this permanently to MySQL
       if (user.id) {
         try {
-          const response = await fetch(`http://localhost:8080/api/players/${user.id}/unlock`, {
+          // 🔥 FIXED: Dynamic URL for saving progress
+          const API_URL = import.meta.env.VITE_API_URL || 'https://aoopprojectbibliotheca-production.up.railway.app';
+          const response = await fetch(`${API_URL}/api/players/${user.id}/unlock`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bookId: targetBookId })
