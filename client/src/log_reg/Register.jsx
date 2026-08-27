@@ -103,13 +103,26 @@ function Register() {
         })
       });
 
-      const data = await response.json();
+      // 1. Get the raw text from the backend FIRST to prevent JSON crashes
+      const text = await response.text();
+      let data = {};
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
+      // 2. Safely try to convert it to JSON
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.warn("Backend sent non-JSON text:", text);
+          data = { message: text }; 
+        }
       }
 
-      console.log('Registration successful! Redirecting to Login...');
+      // 3. Check for errors
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `Server Error: ${response.status}`);
+      }
+
+      console.log('Registration successful! Redirecting to Login...', data);
       navigate('/login', { state: { message: 'Account created successfully! Please sign in.' } });
       
     } catch (error) {
