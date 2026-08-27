@@ -15,7 +15,7 @@ import java.util.Collections;
 
 @RestController
 @RequestMapping("/api/players")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class PlayerController {
 
     @Autowired
