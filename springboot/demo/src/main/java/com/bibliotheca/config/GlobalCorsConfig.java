@@ -13,16 +13,15 @@ public class GlobalCorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
         
-        // Explicitly define allowed origins instead of using wildcards
+        // Add your primary Vercel domain to the allowed list
         config.setAllowedOrigins(List.of(
+            "https://aoop-project-biblio-theca.vercel.app",
             "https://aoop-project-biblio-theca-fgqesxbic-nusrat-bably.vercel.app",
             "http://localhost:5173"
         )); 
         
         config.addAllowedHeader("*");
         config.addAllowedMethod("*"); 
-        
-        // Required for frontend applications that send authorization headers or cookies
         config.setAllowCredentials(true); 
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
