@@ -13,11 +13,10 @@ public class GlobalCorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
         
-        // Add your primary Vercel domain to the allowed list
-        config.setAllowedOrigins(List.of(
-            "https://aoop-project-biblio-theca.vercel.app",
-            "https://aoop-project-biblio-theca-fgqesxbic-nusrat-bably.vercel.app",
-            "http://localhost:5173"
+        // Use Origin Patterns to authorize ALL current and future Vercel URLs
+        config.setAllowedOriginPatterns(List.of(
+            "https://*.vercel.app",
+            "http://localhost:*"
         )); 
         
         config.addAllowedHeader("*");
