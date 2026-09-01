@@ -15,7 +15,18 @@ import java.util.Collections;
 
 @RestController
 @RequestMapping("/api/players")
-//@CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
+@CrossOrigin(
+    origins = {
+        "https://*.vercel.app",
+        "https://aoop-project-biblio-theca-lbubkhie5-nusrat-bably.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173"
+    },
+    allowedHeaders = "*",
+    methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS, RequestMethod.PATCH},
+    allowCredentials = "true"
+)
 public class PlayerController {
 
     @Autowired
